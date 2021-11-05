@@ -20,9 +20,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  string pid_str(argv[1]);
-  int pid;
-  if (!Param::Convert(pid_str, pid, "party_id") || pid < 0 || pid > 2) {
+  string party_id_str(argv[1]);
+  int party_id;
+  if (!Param::Convert(party_id_str, party_id, "party_id") || party_id < 0 || party_id > 2) {
     cout << "Error: party_id should be 0, 1, or 2" << endl;
     return 1;
   }
@@ -39,18 +39,18 @@ int main(int argc, char** argv) {
 
   /* Initialize MPC environment */
   MPCEnv mpc;
-  if (!mpc.Initialize(pid, pairs)) {
+  if (!mpc.Initialize(party_id, pairs)) {
     cout << "MPC environment initialization failed" << endl;
     return 1;
   }
 
-  bool success = gwas_protocol(mpc, pid);
+  bool success = gwas_protocol(mpc, party_id);
 
   // This is here just to keep P0 online until the end for data transfer
   // In practice, P0 would send data in advance before each phase and go offline
-  if (pid == 0) {
+  if (party_id == 0) {
     mpc.ReceiveBool(2);
-  } else if (pid == 2) {
+  } else if (party_id == 2) {
     mpc.SendBool(true, 0);
   }
 

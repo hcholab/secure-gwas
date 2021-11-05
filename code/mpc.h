@@ -20,7 +20,7 @@ using namespace std;
 class MPCEnv {
 public:
   MPCEnv() {};
-  bool Initialize(int pid, vector< pair<int, int> > &pairs);
+  bool Initialize(int party_id, vector< pair<int, int> > &pairs);
   bool SetupChannels(vector< pair<int, int> > &pairs);
   bool SetupPRGs(vector< pair<int, int> > &pairs);
   void CleanUp();
@@ -122,8 +122,8 @@ public:
   
     if (pow == 1) {
       Init(b, 2, n);
-      if (pid > 0) {
-        if (pid == 1) {
+      if (party_id > 0) {
+        if (party_id == 1) {
           AddScalar(b[0], T(1));
         }
         b[1] = a;
@@ -132,7 +132,7 @@ public:
       Vec<T> ar, am;
       BeaverPartition(ar, am, a, fid);
   
-      if (pid == 0) {
+      if (party_id == 0) {
         Mat<T> ampow;
         ampow.SetDims(pow - 1, n);
         mul_elem(ampow[0], am, am);
@@ -155,11 +155,11 @@ public:
         b.SetDims(pow + 1, n);
       } else {
         Mat<T> ampow;
-        if (pid == 1) {
+        if (party_id == 1) {
           SwitchSeed(0);
           RandMat(ampow, pow - 1, n, fid);
           RestoreSeed();
-        } else { // pid == 2
+        } else { // party_id == 2
           ReceiveMat(ampow, 0, pow - 1, n, fid);
         }
   
@@ -176,14 +176,14 @@ public:
   
         Init(b, pow + 1, n);
   
-        if (pid == 1) {
+        if (party_id == 1) {
           AddScalar(b[0], T(1));
         }
         b[1] = a;
   
         Vec<T> tmp;
         for (int p = 2; p <= pow; p++) {
-          if (pid == 1) {
+          if (party_id == 1) {
             b[p] = arpow[p - 2];
           }
   
@@ -222,7 +222,7 @@ public:
     Mat<T> apow;
     Powers(apow, a, deg, fid);
   
-    if (pid > 0) {
+    if (party_id > 0) {
       b = coeff * apow;
       Mod(b, fid);
     } else {
@@ -239,17 +239,17 @@ public:
 
   template<class T>
   void RevealSym(T& a, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       return;
     }
 
     T b;
-    if (pid == 1) {
-      SendElem(a, 3 - pid, fid);
-      ReceiveElem(b, 3 - pid, fid);
+    if (party_id == 1) {
+      SendElem(a, 3 - party_id, fid);
+      ReceiveElem(b, 3 - party_id, fid);
     } else {
-      ReceiveElem(b, 3 - pid, fid);
-      SendElem(a, 3 - pid, fid);
+      ReceiveElem(b, 3 - party_id, fid);
+      SendElem(a, 3 - party_id, fid);
     }
 
     a += b;
@@ -260,17 +260,17 @@ public:
   void RevealSym(Vec<T>& a, int fid = 0) {
     if (debug) cout << "RevealSym: " << a.length() << endl;
   
-    if (pid == 0) {
+    if (party_id == 0) {
       return;
     }
 
     Vec<T> b;
-    if (pid == 1) {
-      SendVec(a, 3 - pid, fid);
-      ReceiveVec(b, 3 - pid, a.length(), fid);
+    if (party_id == 1) {
+      SendVec(a, 3 - party_id, fid);
+      ReceiveVec(b, 3 - party_id, a.length(), fid);
     } else {
-      ReceiveVec(b, 3 - pid, a.length(), fid);
-      SendVec(a, 3 - pid, fid);
+      ReceiveVec(b, 3 - party_id, a.length(), fid);
+      SendVec(a, 3 - party_id, fid);
     }
 
     a += b;
@@ -281,17 +281,17 @@ public:
   void RevealSym(Mat<T>& a, int fid = 0) {
     if (debug) cout << "RevealSym: " << a.NumRows() << ", " << a.NumCols() << endl;
   
-    if (pid == 0) {
+    if (party_id == 0) {
       return;
     }
   
     Mat<T> b;
-    if (pid == 1) {
-      SendMat(a, 3 - pid, fid);
-      ReceiveMat(b, 3 - pid, a.NumRows(), a.NumCols(), fid);
+    if (party_id == 1) {
+      SendMat(a, 3 - party_id, fid);
+      ReceiveMat(b, 3 - party_id, a.NumRows(), a.NumCols(), fid);
     } else {
-      ReceiveMat(b, 3 - pid, a.NumRows(), a.NumCols(), fid);
-      SendMat(a, 3 - pid, fid);
+      ReceiveMat(b, 3 - party_id, a.NumRows(), a.NumCols(), fid);
+      SendMat(a, 3 - party_id, fid);
     }
   
     a += b;
@@ -304,7 +304,7 @@ public:
       cout << "RevealSym" << endl;
     }
   
-    if (pid == 0) {
+    if (party_id == 0) {
       return;
     }
   
@@ -319,12 +319,12 @@ public:
     }
   
     Vec< Mat<T> > b;
-    if (pid == 1) {
-      SendMatParallel(a, 3 - pid, fid);
-      ReceiveMatParallel(b, 3 - pid, nrows, ncols, fid);
+    if (party_id == 1) {
+      SendMatParallel(a, 3 - party_id, fid);
+      ReceiveMatParallel(b, 3 - party_id, nrows, ncols, fid);
     } else {
-      ReceiveMatParallel(b, 3 - pid, nrows, ncols, fid);
-      SendMatParallel(a, 3 - pid, fid);
+      ReceiveMatParallel(b, 3 - party_id, nrows, ncols, fid);
+      SendMatParallel(a, 3 - party_id, fid);
     }
   
     for (int k = 0; k < nmat; k++) {
@@ -365,9 +365,9 @@ public:
 
   void PrintBeaverFP(ZZ_p& a, ZZ_p& am) {
     ZZ_p a_copy;
-    if (pid == 1) {
+    if (party_id == 1) {
       a_copy = am;
-    } else if (pid == 2) {
+    } else if (party_id == 2) {
       a_copy = a + am;
     }
     PrintFP(a_copy, cout);
@@ -380,9 +380,9 @@ public:
       a_copy.SetLength(maxlen);
       am_copy.SetLength(maxlen);
     }
-    if (pid == 1) {
+    if (party_id == 1) {
       a_copy = am_copy;
-    } else if (pid == 2) {
+    } else if (party_id == 2) {
       a_copy = a_copy + am_copy;
     }
     PrintFP(a_copy, cout);
@@ -395,9 +395,9 @@ public:
       a_copy.SetLength(maxlen);
       am_copy.SetLength(maxlen);
     }
-    if (pid == 1) {
+    if (party_id == 1) {
       a_copy = am_copy;
-    } else if (pid == 2) {
+    } else if (party_id == 2) {
       a_copy = a_copy + am_copy;
     }
     Print(a_copy, cout, fid);
@@ -413,7 +413,7 @@ public:
     Vec<double> ad;
     FPToDouble(ad, a_copy, Param::NBIT_K, Param::NBIT_F);
 
-    if (pid == 2) {
+    if (party_id == 2) {
       for (int i = 0; i < ad.length(); i++) {
         os << ad[i];
         if (i == ad.length() - 1) {
@@ -431,7 +431,7 @@ public:
     Vec<double> ad;
     FPToDouble(ad, a_copy, Param::NBIT_K, Param::NBIT_F);
 
-    if (pid == 2) {
+    if (party_id == 2) {
       for (int i = 0; i < ad.length(); i++) {
         os << ad[i];
         if (i == ad.length() - 1) {
@@ -466,7 +466,7 @@ public:
     Mat<double> ad;
     FPToDouble(ad, a_copy, Param::NBIT_K, Param::NBIT_F);
 
-    if (pid == 2) {
+    if (party_id == 2) {
       for (int i = 0; i < ad.NumRows(); i++) {
         for (int j = 0; j < ad.NumCols(); j++) {
           os << ad[i][j];
@@ -486,7 +486,7 @@ public:
     Mat<double> ad;
     FPToDouble(ad, a_copy, Param::NBIT_K, Param::NBIT_F);
 
-    if (pid == 2) {
+    if (party_id == 2) {
       for (int i = 0; i < ad.NumRows(); i++) {
         for (int j = 0; j < ad.NumCols(); j++) {
           os << ad[i][j];
@@ -505,7 +505,7 @@ public:
     Mat<T> a_copy = a;
     RevealSym(a_copy, fid);
 
-    if (pid == 2) {
+    if (party_id == 2) {
       for (int i = 0; i < a_copy.NumRows(); i++) {
         for (int j = 0; j < a_copy.NumCols(); j++) {
           os << a_copy[i][j];
@@ -524,7 +524,7 @@ public:
     Vec<T> a_copy = a;
     RevealSym(a_copy, fid);
 
-    if (pid == 2) {
+    if (party_id == 2) {
       for (int i = 0; i < a_copy.length(); i++) {
         os << a_copy[i];
         if (i == a_copy.length() - 1) {
@@ -547,7 +547,7 @@ public:
 
   template<class T>
   void BeaverFlipBit(Vec<T>& a, Vec<T>& a_mask) {
-    if (pid > 0) {
+    if (party_id > 0) {
       a *= -1;
       for (int i = 0; i < a.length(); i++) {
         a[i] += 1;
@@ -558,7 +558,7 @@ public:
 
   template<class T>
   void BeaverReconstruct(T& ab, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       T mask;
       SwitchSeed(1);
       RandElem(mask, fid);
@@ -570,7 +570,7 @@ public:
       SendElem(ab, 2, fid);
     } else {
       T ambm;
-      if (pid == 2) {
+      if (party_id == 2) {
         ReceiveElem(ambm, 0, fid);
       } else {
         SwitchSeed(0);
@@ -585,7 +585,7 @@ public:
 
   template<class T>
   void BeaverReconstruct(Vec<T>& ab, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       Vec<T> mask;
       SwitchSeed(1);
       RandVec(mask, ab.length(), fid);
@@ -597,7 +597,7 @@ public:
       SendVec(ab, 2, fid);
     } else {
       Vec<T> ambm;
-      if (pid == 2) {
+      if (party_id == 2) {
         ReceiveVec(ambm, 0, ab.length(), fid);
       } else {
         SwitchSeed(0);
@@ -612,7 +612,7 @@ public:
 
   template<class T>
   void BeaverReconstruct(Mat<T>& ab, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       Mat<T> mask;
       SwitchSeed(1);
       RandMat(mask, ab.NumRows(), ab.NumCols(), fid);
@@ -624,7 +624,7 @@ public:
       SendMat(ab, 2, fid);
     } else {
       Mat<T> ambm;
-      if (pid == 2) {
+      if (party_id == 2) {
         ReceiveMat(ambm, 0, ab.NumRows(), ab.NumCols(), fid);
       } else {
         SwitchSeed(0);
@@ -641,7 +641,7 @@ public:
   void BeaverReconstruct(Vec< Mat<T> >& ab, int fid = 0) {
     int nmat = ab.length();
 
-    if (pid == 0) {
+    if (party_id == 0) {
       Mat<T> mask;
 
       SwitchSeed(1);
@@ -657,7 +657,7 @@ public:
     } else {
       Vec< Mat<T> > ambm;
 
-      if (pid == 2) {
+      if (party_id == 2) {
         Vec<int> nrows, ncols;
         nrows.SetLength(nmat);
         ncols.SetLength(nmat);
@@ -687,12 +687,12 @@ public:
 
   template<class T>
   void BeaverMult(T& ab, T& ar, T& am, T& br, T& bm, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       ab += am * bm;
     } else {
       ab += ar * bm;
       ab += am * br;
-      if (pid == 1) {
+      if (party_id == 1) {
         ab += ar * br;
       }
     }
@@ -702,12 +702,12 @@ public:
 
   template<class T>
   void BeaverMult(Vec<T>& ab, Vec<T>& ar, Vec<T>& am, T& br, T& bm, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       ab += am * bm;
     } else {
       ab += ar * bm;
       ab += am * br;
-      if (pid == 1) {
+      if (party_id == 1) {
         ab += ar * br;
       }
     }
@@ -717,12 +717,12 @@ public:
 
   template<class T>
   void BeaverMult(Vec<T>& ab, Mat<T>& ar, Mat<T>& am, Vec<T>& br, Vec<T>& bm, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       ab += am * bm;
     } else {
       ab += ar * bm;
       ab += am * br;
-      if (pid == 1) {
+      if (party_id == 1) {
         ab += ar * br;
       }
     }
@@ -732,12 +732,12 @@ public:
 
   template<class T>
   void BeaverMult(Vec<T>& ab, Vec<T>& ar, Vec<T>& am, Mat<T>& br, Mat<T>& bm, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       ab += am * bm;
     } else {
       ab += ar * bm;
       ab += am * br;
-      if (pid == 1) {
+      if (party_id == 1) {
         ab += ar * br;
       }
     }
@@ -764,12 +764,12 @@ public:
   template<class T>
   void BeaverInnerProd(T& ab, Vec<T>& ar, Vec<T>& am, Vec<T>& br, Vec<T>& bm, int fid = 0) {
     for (int i = 0; i < ar.length(); i++) {
-      if (pid == 0) {
+      if (party_id == 0) {
         ab += am[i] * bm[i];
       } else {
         ab += ar[i] * bm[i];
         ab += br[i] * am[i];
-        if (pid == 1) {
+        if (party_id == 1) {
           ab += ar[i] * br[i];
         }
       }
@@ -781,11 +781,11 @@ public:
   template<class T>
   void BeaverInnerProd(T& ab, Vec<T>& ar, Vec<T>& am, int fid = 0) {
     for (int i = 0; i < ar.length(); i++) {
-      if (pid == 0) {
+      if (party_id == 0) {
         ab += am[i] * am[i];
       } else {
         ab += 2 * ar[i] * am[i];
-        if (pid == 1) {
+        if (party_id == 1) {
           ab += ar[i] * ar[i];
         }
       }
@@ -816,7 +816,7 @@ public:
 
   template<class T>
   void BeaverPartition(T& ar, T& am, T& a, int fid = 0) {
-    if (pid == 0) {
+    if (party_id == 0) {
       T x1;
       SwitchSeed(1);
       RandElem(x1, fid);
@@ -844,7 +844,7 @@ public:
   void BeaverPartition(Vec<T>& ar, Vec<T>& am, Vec<T>& a, int fid = 0) {
     int n = a.length();
 
-    if (pid == 0) {
+    if (party_id == 0) {
       Vec<T> x1;
       SwitchSeed(1);
       RandVec(x1, n, fid);
@@ -876,7 +876,7 @@ public:
     int nrow = a.NumRows();
     int ncol = a.NumCols();
   
-    if (pid == 0) {
+    if (party_id == 0) {
       Mat<T> x1;
       SwitchSeed(1);
       RandMat(x1, nrow, ncol, fid);
@@ -911,7 +911,7 @@ public:
       ar.SetLength(nmat);
     }
 
-    if (pid == 0) {
+    if (party_id == 0) {
       ar.SetLength(nmat);
 
       for (int i = 0; i < nmat; i++) {
@@ -948,28 +948,28 @@ public:
 
   template<class T>
   void AddPublic(Vec<T>& a, T b) {
-    if (pid == 1) {
+    if (party_id == 1) {
       AddScalar(a, b);
     }
   }
 
   template<class T>
   void AddPublic(Mat<T>& a, T b) {
-    if (pid == 1) {
+    if (party_id == 1) {
       AddScalar(a, b);
     }
   }
 
   template<class T>
   void Add(Vec<T>& a, T b) {
-    if (pid > 0) {
+    if (party_id > 0) {
       AddScalar(a, b);
     }
   }
 
   template<class T>
   void Add(Mat<T>& a, T b) {
-    if (pid > 0) {
+    if (party_id > 0) {
       AddScalar(a, b);
     }
   }
@@ -1054,7 +1054,7 @@ public:
   template<class T>
   void Reshape(Vec<T>& b, Mat<T>& a) {
     b.SetLength(a.NumRows() * a.NumCols());
-    if (pid > 0) {
+    if (party_id > 0) {
       int ind = 0;
       for (int i = 0; i < a.NumRows(); i++) {
         for (int j = 0; j < a.NumCols(); j++) {
@@ -1067,7 +1067,7 @@ public:
   
   template<class T>
   void Reshape(Mat<T>& a, int nrows, int ncols) {
-    if (pid == 0) {
+    if (party_id == 0) {
       assert(a.NumRows() * a.NumCols() == nrows * ncols);
       a.SetDims(nrows, ncols);
     } else {
@@ -1077,7 +1077,7 @@ public:
   
   template<class T>
   void Reshape(Mat<T>& b, Vec<T>& a, int nrows, int ncols) {
-    if (pid == 0) {
+    if (party_id == 0) {
       assert(a.length() == nrows * ncols);
       b.SetDims(nrows, ncols);
     } else {
@@ -1092,7 +1092,7 @@ public:
 
   template<class T>
   void Transpose(Mat<T>& b, Mat<T>& a) {
-    if (pid == 0) {
+    if (party_id == 0) {
       b.SetDims(a.NumCols(), a.NumRows());
     } else {
       b = transpose(a);
@@ -1101,7 +1101,7 @@ public:
 
   template<class T>
   void FilterCols(Mat<ZZ_p>& a, Vec<T>& filt, int new_ncols) {
-    if (pid > 0) {
+    if (party_id > 0) {
       FilterMatCols(a, filt);
     } else {
       a.SetDims(a.NumRows(), new_ncols);
@@ -1110,7 +1110,7 @@ public:
 
   template<class T>
   void FilterRows(Mat<ZZ_p>& a, Vec<T>& filt, int new_nrows) {
-    if (pid > 0) {
+    if (party_id > 0) {
       FilterMatRows(a, filt);
     } else {
       a.SetDims(new_nrows, a.NumCols());
@@ -1119,7 +1119,7 @@ public:
 
   template<class T>
   void Filter(Vec<ZZ_p>& a, Vec<T>& filt, int new_len) {
-    if (pid > 0) {
+    if (party_id > 0) {
       FilterVec(a, filt);
     } else {
       a.SetLength(new_len);
@@ -1139,14 +1139,14 @@ public:
   /* Communication */
 
   template<class T>
-  void ReceiveElem(T& a, int from_pid, int fid = 0) {
+  void ReceiveElem(T& a, int from_party_id, int fid = 0) {
     unsigned char *buf_ptr = buf;
-    sockets.find(from_pid)->second.ReceiveSecure(buf, ZZ_bytes[fid]);
+    sockets.find(from_party_id)->second.ReceiveSecure(buf, ZZ_bytes[fid]);
     ConvertBytes(a, buf_ptr, fid);
   }
   
   template<class T>
-  void ReceiveVec(Vec<T>& a, int from_pid, int n, int fid = 0) {
+  void ReceiveVec(Vec<T>& a, int from_party_id, int n, int fid = 0) {
     a.SetLength(n);
     unsigned char *buf_ptr = buf;
     uint64_t stored_in_buf = 0;
@@ -1159,7 +1159,7 @@ public:
         } else {
           count = ZZ_per_buf[fid];
         }
-        sockets.find(from_pid)->second.ReceiveSecure(buf, count * ZZ_bytes[fid]);
+        sockets.find(from_party_id)->second.ReceiveSecure(buf, count * ZZ_bytes[fid]);
         stored_in_buf += count;
         remaining -= count;
         buf_ptr = buf;
@@ -1172,7 +1172,7 @@ public:
   }
   
   template<class T>
-  void ReceiveMat(Mat<T>& a, int from_pid, int nrows, int ncols, int fid = 0) {
+  void ReceiveMat(Mat<T>& a, int from_party_id, int nrows, int ncols, int fid = 0) {
     a.SetDims(nrows, ncols);
     unsigned char *buf_ptr = buf;
     uint64_t stored_in_buf = 0;
@@ -1186,7 +1186,7 @@ public:
           } else {
             count = ZZ_per_buf[fid];
           }
-          sockets.find(from_pid)->second.ReceiveSecure(buf, count * ZZ_bytes[fid]);
+          sockets.find(from_party_id)->second.ReceiveSecure(buf, count * ZZ_bytes[fid]);
           stored_in_buf += count;
           remaining -= count;
           buf_ptr = buf;
@@ -1200,19 +1200,19 @@ public:
   }
 
   template<class T>
-  void SendElem(T& a, int to_pid, int fid = 0) {
+  void SendElem(T& a, int to_party_id, int fid = 0) {
     unsigned char *buf_ptr = buf;
     BytesFromZZ(buf_ptr, AsZZ(a), ZZ_bytes[fid]);
-    sockets.find(to_pid)->second.SendSecure(buf, ZZ_bytes[fid]);
+    sockets.find(to_party_id)->second.SendSecure(buf, ZZ_bytes[fid]);
   }
   
   template<class T>
-  void SendVec(Vec<T>& a, int to_pid, int fid = 0) {
+  void SendVec(Vec<T>& a, int to_party_id, int fid = 0) {
     unsigned char *buf_ptr = buf;
     uint64_t stored_in_buf = 0;
     for (int i = 0; i < a.length(); i++) {
       if (stored_in_buf == ZZ_per_buf[fid]) {
-        sockets.find(to_pid)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
+        sockets.find(to_party_id)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
         stored_in_buf = 0;
         buf_ptr = buf;
       }
@@ -1223,18 +1223,18 @@ public:
     }
   
     if (stored_in_buf > 0) {
-      sockets.find(to_pid)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
+      sockets.find(to_party_id)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
     }
   }
   
   template<class T>
-  void SendMat(Mat<T>& a, int to_pid, int fid = 0) {
+  void SendMat(Mat<T>& a, int to_party_id, int fid = 0) {
     unsigned char *buf_ptr = buf;
     uint64_t stored_in_buf = 0;
     for (int i = 0; i < a.NumRows(); i++) {
       for (int j = 0; j < a.NumCols(); j++) {
         if (stored_in_buf == ZZ_per_buf[fid]) {
-          sockets.find(to_pid)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
+          sockets.find(to_party_id)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
           stored_in_buf = 0;
           buf_ptr = buf;
         }
@@ -1246,12 +1246,12 @@ public:
     }
   
     if (stored_in_buf > 0) {
-      sockets.find(to_pid)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
+      sockets.find(to_party_id)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
     }
   }
   
   template<class T>
-  void ReceiveMatParallel(Vec< Mat<T> >& a, int from_pid, Vec<int>& nrows, Vec<int>& ncols, int fid = 0) {
+  void ReceiveMatParallel(Vec< Mat<T> >& a, int from_party_id, Vec<int>& nrows, Vec<int>& ncols, int fid = 0) {
     assert(nrows.length() == ncols.length());
   
     int nmat = nrows.length();
@@ -1275,7 +1275,7 @@ public:
             } else {
               count = ZZ_per_buf[fid];
             }
-            sockets.find(from_pid)->second.ReceiveSecure(buf, count * ZZ_bytes[fid]);
+            sockets.find(from_party_id)->second.ReceiveSecure(buf, count * ZZ_bytes[fid]);
             stored_in_buf += count;
             remaining -= count;
             buf_ptr = buf;
@@ -1290,14 +1290,14 @@ public:
   }
   
   template<class T>
-  void SendMatParallel(Vec< Mat<T> >& a, int to_pid, int fid = 0) {
+  void SendMatParallel(Vec< Mat<T> >& a, int to_party_id, int fid = 0) {
     unsigned char *buf_ptr = buf;
     uint64_t stored_in_buf = 0;
     for (int k = 0; k < a.length(); k++) {
       for (int i = 0; i < a[k].NumRows(); i++) {
         for (int j = 0; j < a[k].NumCols(); j++) {
           if (stored_in_buf == ZZ_per_buf[fid]) {
-            sockets.find(to_pid)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
+            sockets.find(to_party_id)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
             stored_in_buf = 0;
             buf_ptr = buf;
           }
@@ -1310,23 +1310,23 @@ public:
     }
   
     if (stored_in_buf > 0) {
-      sockets.find(to_pid)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
+      sockets.find(to_party_id)->second.SendSecure(buf, ZZ_bytes[fid] * stored_in_buf);
     }
   }
 
-  void SendInt(int num, int to_pid);
-  int ReceiveInt(int from_pid);
+  void SendInt(int num, int to_party_id);
+  int ReceiveInt(int from_party_id);
 
-  void SendBool(bool flag, int to_pid);
-  bool ReceiveBool(int from_pid);
+  void SendBool(bool flag, int to_party_id);
+  bool ReceiveBool(int from_party_id);
 
-  void SwitchSeed(int pid);
+  void SwitchSeed(int party_id);
   void RestoreSeed() {
-    SwitchSeed(pid);
+    SwitchSeed(party_id);
   }
 
   void ExportSeed(fstream& ofs);
-  void ExportSeed(fstream& ofs, int pid);
+  void ExportSeed(fstream& ofs, int party_id);
   void ImportSeed(int newid, ifstream& ifs);
 
   void SetDebug(bool flag) {
@@ -1402,8 +1402,8 @@ private:
   map<pair<int, int>, Mat<ZZ> > pascal_cache_ZZ;
   map<int, Mat<ZZ_p> > pascal_cache_ZZp;
 
-  int pid;
-  int cur_prg_pid;
+  int party_id;
+  int cur_prg_party_id;
   unsigned char *buf;
   bool debug;
 

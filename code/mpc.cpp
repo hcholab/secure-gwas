@@ -13,14 +13,14 @@
 using namespace NTL;
 using namespace std;
 
-bool MPCEnv::Initialize(int pid, vector< pair<int, int> > &pairs) {
+bool MPCEnv::Initialize(int party_id, vector< pair<int, int> > &pairs) {
   cout << "Initializing MPC environment" << endl;
 
   /* Set base prime for the finite field */
   ZZ base_p = conv<ZZ>(Param::BASE_P.c_str());
   ZZ_p::init(base_p);
 
-  this->pid = pid;
+  this->party_id = party_id;
   this->clock_start = chrono::steady_clock::now();
   debug = false;
 
@@ -34,8 +34,8 @@ bool MPCEnv::Initialize(int pid, vector< pair<int, int> > &pairs) {
     return false;
   }
   
-  SetSeed(prg.find(pid)->second);
-  cur_prg_pid = pid;
+  SetSeed(prg.find(party_id)->second);
+  cur_prg_party_id = party_id;
 
   primes.SetLength(3);
   primes[0] = ZZ_p::modulus();
@@ -101,7 +101,7 @@ bool MPCEnv::Initialize(int pid, vector< pair<int, int> > &pairs) {
 
   // Table 0
   table.SetDims(1, 2);
-  if (pid > 0) {
+  if (party_id > 0) {
     table[0][0] = 1;
     table[0][1] = 0;
   }
@@ -112,7 +112,7 @@ bool MPCEnv::Initialize(int pid, vector< pair<int, int> > &pairs) {
   // Table 1
   int half_len = Param::NBIT_K / 2;
   table.SetDims(2, half_len + 1);
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < half_len + 1; i++) {
       if (i == 0) {
         table[0][i] = 1;
@@ -131,7 +131,7 @@ bool MPCEnv::Initialize(int pid, vector< pair<int, int> > &pairs) {
   // Table 2: parameters (intercept, slope) for piecewise-linear approximation of
   //          negative log-sigmoid function
   table.SetDims(2, 64);
-  if (pid > 0) {
+  if (party_id > 0) {
     ifstream ifs;
     ifs.open("sigmoid_approx.txt");
     if (!ifs.is_open()) {
@@ -167,7 +167,7 @@ bool MPCEnv::Initialize(int pid, vector< pair<int, int> > &pairs) {
       lagrange_cache[cid].SetDims(nrow, ncol);
     }
 
-    if (pid > 0) {
+    if (party_id > 0) {
       cout << "Lagrange interpolation for Table " << cid << " ... ";
       for (int i = 0; i < nrow; i++) {
         Vec<long> x;
@@ -202,7 +202,7 @@ bool MPCEnv::SetupChannels(vector< pair<int, int> > &pairs) {
     int p1 = pairs[i].first;
     int p2 = pairs[i].second;
 
-    if (p1 != pid && p2 != pid) {
+    if (p1 != party_id && p2 != party_id) {
       continue;
     }
 
@@ -223,10 +223,10 @@ bool MPCEnv::SetupChannels(vector< pair<int, int> > &pairs) {
     oss << Param::KEY_PATH << "P" << p1 << "_P" << p2 << ".key";
     string key_file = oss.str();
 
-    int pother = p1 + p2 - pid;
+    int pother = p1 + p2 - party_id;
     sockets.insert(map<int, CSocket>::value_type(pother, CSocket()));
 
-    if (p1 == pid) {
+    if (p1 == party_id) {
       if (!OpenChannel(sockets[pother], port)) {
         cout << "Failed to connect with P" << pother << endl;
         return false;
@@ -270,7 +270,7 @@ bool MPCEnv::SetupPRGs(vector< pair<int, int> > &pairs) {
     return false;
   }
 
-  prg.insert(map<int, RandomStream>::value_type(pid, NewRandomStream(key)));
+  prg.insert(map<int, RandomStream>::value_type(party_id, NewRandomStream(key)));
   
   /* Global PRG */
   ifstream ifs;
@@ -298,13 +298,13 @@ bool MPCEnv::SetupPRGs(vector< pair<int, int> > &pairs) {
     int p1 = pairs[i].first;
     int p2 = pairs[i].second;
 
-    if (p1 != pid && p2 != pid) {
+    if (p1 != party_id && p2 != party_id) {
       continue;
     }
 
-    int pother = p1 + p2 - pid;
+    int pother = p1 + p2 - party_id;
 
-    if (p1 == pid) {
+    if (p1 == party_id) {
       bytes = randread(key, key_len);
       if (bytes != key_len) {
         cout << "Failed to generate a shared PRG key" << endl;
@@ -345,7 +345,7 @@ void MPCEnv::ProfilerResetTimer() {
 
   int ind = 1;
   for (int p = 0; p < 3; p++) {
-    if (p == pid) continue;
+    if (p == party_id) continue;
     map<int, CSocket>::iterator it = sockets.find(p);
     stat[ind] = it->second.GetBytesSent();
     stat[ind+1] = it->second.GetBytesReceived();
@@ -417,7 +417,7 @@ void MPCEnv::ProfilerWriteToFile() {
   // log file header
   oss << "Desc\tTime(ms)";
   for (int p = 0; p < 3; p++) {
-    if (p == pid) continue;
+    if (p == party_id) continue;
     oss << "\tTo_" << p;
     oss << "\tFrom_" << p;
   }
@@ -460,14 +460,14 @@ void MPCEnv::ParallelLogisticRegression(Vec<ZZ_p>& b0, Mat<ZZ_p>& bv, Vec<ZZ_p>&
   // Flip y
   Vec<ZZ_p> yneg_r = -yr;
   Vec<ZZ_p> yneg_m = -ym;
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       yneg_r[i] += 1;
     }
   }
 
   Vec<ZZ_p> yneg = yneg_m;
-  if (pid == 1) {
+  if (party_id == 1) {
     for (int i = 0; i < n; i++) {
       yneg[i] += yneg_r[i];
     }
@@ -638,7 +638,7 @@ void MPCEnv::NegLogSigmoid(Vec<ZZ_p>& b, Vec<ZZ_p>& b_grad, Vec<ZZ_p>& a) {
     }
 
     cur_sign *= 2;
-    if (pid == 1) {
+    if (party_id == 1) {
       for (int j = 0; j < n; j++) {
         cur_sign[j] -= 1;
       }
@@ -655,7 +655,7 @@ void MPCEnv::NegLogSigmoid(Vec<ZZ_p>& b, Vec<ZZ_p>& b_grad, Vec<ZZ_p>& a) {
   }
 
   // Make indices 1-based
-  if (pid == 1) {
+  if (party_id == 1) {
     for (int j = 0; j < n; j++) {
       a_ind[j]++;
     }
@@ -668,7 +668,7 @@ void MPCEnv::NegLogSigmoid(Vec<ZZ_p>& b, Vec<ZZ_p>& b_grad, Vec<ZZ_p>& a) {
   MultElem(b, param[1], a);
   Trunc(b);
 
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int j = 0; j < n; j++) {
       b[j] += param[0][j];
     }
@@ -724,7 +724,7 @@ void MPCEnv::Householder(Vec<ZZ_p>& v, Vec<ZZ_p>& x) {
   IsPositive(x1sign, x1);
 
   x1sign *= 2;
-  if (pid == 1) {
+  if (party_id == 1) {
     x1sign[0] -= 1;
   }
 
@@ -741,7 +741,7 @@ void MPCEnv::Householder(Vec<ZZ_p>& v, Vec<ZZ_p>& x) {
 
   Vec<ZZ_p> vdot;
   vdot.SetLength(1);
-  if (pid > 0) {
+  if (party_id > 0) {
     vdot[0] = 2 * (xdot[0] + dot_shift);
   }
 
@@ -752,7 +752,7 @@ void MPCEnv::Householder(Vec<ZZ_p>& v, Vec<ZZ_p>& x) {
   BeaverPartition(invr, invm, vnorm_inv[0]);
  
   Vec<ZZ_p> vr, vm;
-  if (pid > 0) {
+  if (party_id > 0) {
     vr = xr;
     vr[0] += sr;
   } else {
@@ -774,12 +774,12 @@ void MPCEnv::QRFactSquare(Mat<ZZ_p>& Q, Mat<ZZ_p>& R, Mat<ZZ_p>& A) {
 
   int n = A.NumRows();
   R.SetDims(n, n);
-  if (pid > 0) {
+  if (party_id > 0) {
     clear(R);
   }
 
   Mat<ZZ_p> Ap;
-  if (pid == 0) {
+  if (party_id == 0) {
     Ap.SetDims(n, n);
   } else {
     Ap = A;
@@ -794,7 +794,7 @@ void MPCEnv::QRFactSquare(Mat<ZZ_p>& Q, Mat<ZZ_p>& R, Mat<ZZ_p>& A) {
     Householder(v[0], Ap[0]);
 
     Mat<ZZ_p> vt;
-    if (pid == 0) {
+    if (party_id == 0) {
       vt.SetDims(Ap.NumCols(), 1);
     } else {
       transpose(vt, v);
@@ -803,9 +803,9 @@ void MPCEnv::QRFactSquare(Mat<ZZ_p>& Q, Mat<ZZ_p>& R, Mat<ZZ_p>& A) {
     Mat<ZZ_p> P;
     MultMat(P, vt, v);
     Trunc(P);
-    if (pid > 0) {
+    if (party_id > 0) {
       P *= -2;
-      if (pid == 1) {
+      if (party_id == 1) {
         for (int j = 0; j < P.NumCols(); j++) {
           P[j][j] += one;
         }
@@ -820,7 +820,7 @@ void MPCEnv::QRFactSquare(Mat<ZZ_p>& Q, Mat<ZZ_p>& R, Mat<ZZ_p>& A) {
     } else {
       Mat<ZZ_p> Qsub;
       Qsub.SetDims(n - i, n);
-      if (pid > 0) {
+      if (party_id > 0) {
         for (int j = 0; j < n - i; j++) {
           Qsub[j] = Q[j+i];
         }
@@ -841,7 +841,7 @@ void MPCEnv::QRFactSquare(Mat<ZZ_p>& Q, Mat<ZZ_p>& R, Mat<ZZ_p>& A) {
       Trunc(prod[0]);
       Trunc(prod[1]);
 
-      if (pid > 0) {
+      if (party_id > 0) {
         for (int j = 0; j < n - i; j++) {
           Q[j+i] = prod[0][j];
         }
@@ -851,7 +851,7 @@ void MPCEnv::QRFactSquare(Mat<ZZ_p>& Q, Mat<ZZ_p>& R, Mat<ZZ_p>& A) {
       }
     }
 
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < n - i; j++) {
         R[i+j][i] = B[j][0];
       }
@@ -883,7 +883,7 @@ void MPCEnv::OrthonormalBasis(Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
   v_list.SetLength(c);
 
   Mat<ZZ_p> Ap;
-  if (pid == 0) {
+  if (party_id == 0) {
     Ap.SetDims(c, n);
   } else {
     Ap = A;
@@ -897,14 +897,14 @@ void MPCEnv::OrthonormalBasis(Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
     v.SetDims(1, Ap.NumCols());
     Householder(v[0], Ap[0]);
 
-    if (pid == 0) {
+    if (party_id == 0) {
       v_list[i].SetLength(Ap.NumCols());
     } else {
       v_list[i] = v[0];
     }
 
     Mat<ZZ_p> vt;
-    if (pid == 0) {
+    if (party_id == 0) {
       vt.SetDims(Ap.NumCols(), 1);
     } else {
       transpose(vt, v);
@@ -917,13 +917,13 @@ void MPCEnv::OrthonormalBasis(Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
     Mat<ZZ_p> B;
     MultMat(B, Apv, v);
     Trunc(B);
-    if (pid > 0) {
+    if (party_id > 0) {
       B *= -2;
       B += Ap;
     }
 
     Ap.SetDims(B.NumRows() - 1, B.NumCols() - 1);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < B.NumRows() - 1; j++) {
         for (int k = 0; k < B.NumCols() - 1; k++) {
           Ap[j][k] = B[j+1][k+1];
@@ -933,9 +933,9 @@ void MPCEnv::OrthonormalBasis(Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
   }
 
   Q.SetDims(c, n);
-  if (pid > 0) {
+  if (party_id > 0) {
     clear(Q);
-    if (pid == 1) {
+    if (party_id == 1) {
       for (int i = 0; i < c; i++) {
         Q[i][i] = one;
       }
@@ -945,12 +945,12 @@ void MPCEnv::OrthonormalBasis(Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
   for (int i = c - 1; i >= 0; i--) {
     Mat<ZZ_p> v;
     v.SetDims(1, v_list[i].length());
-    if (pid > 0) {
+    if (party_id > 0) {
       v[0] = v_list[i];
     }
 
     Mat<ZZ_p> vt;
-    if (pid == 0) {
+    if (party_id == 0) {
       vt.SetDims(v.NumCols(), 1);
     } else {
       transpose(vt, v);
@@ -958,7 +958,7 @@ void MPCEnv::OrthonormalBasis(Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
 
     Mat<ZZ_p> Qsub;
     Qsub.SetDims(c, n - i);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < c; j++) {
         for (int k = 0; k < n - i; k++) {
           Qsub[j][k] = Q[j][k+i];
@@ -973,11 +973,11 @@ void MPCEnv::OrthonormalBasis(Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
     Mat<ZZ_p> Qvv;
     MultMat(Qvv, Qv, v);
     Trunc(Qvv);
-    if (pid > 0) {
+    if (party_id > 0) {
       Qvv *= -2;
     }
 
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < c; j++) {
         for (int k = 0; k < n - i; k++) {
           Q[j][k+i] += Qvv[j][k];
@@ -1000,10 +1000,10 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
 
   Q.SetDims(n, n);
   T.SetDims(n, n);
-  if (pid > 0) {
+  if (party_id > 0) {
     clear(Q);
     clear(T);
-    if (pid == 1) {
+    if (party_id == 1) {
       for (int i = 0; i < n; i++) {
         Q[i][i] = one;
       }
@@ -1011,7 +1011,7 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
   }
 
   Mat<ZZ_p> Ap;
-  if (pid == 0) {
+  if (party_id == 0) {
     Ap.SetDims(n, n);
   } else {
     Ap = A;
@@ -1020,7 +1020,7 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
   for (int i = 0; i < n - 2; i++) {
     Vec<ZZ_p> x;
     x.SetLength(Ap.NumCols() - 1);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < Ap.NumCols() - 1; j++) {
         x[j] = Ap[0][j+1];
       }
@@ -1031,7 +1031,7 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
     Householder(v[0], x);
 
     Mat<ZZ_p> vt;
-    if (pid == 0) {
+    if (party_id == 0) {
       vt.SetDims(x.length(), 1);
     } else {
       transpose(vt, v);
@@ -1043,12 +1043,12 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
 
     Mat<ZZ_p> P;
     P.SetDims(Ap.NumCols(), Ap.NumCols());
-    if (pid > 0) {
-      P[0][0] = (pid == 1) ? one : ZZ_p(0);
+    if (party_id > 0) {
+      P[0][0] = (party_id == 1) ? one : ZZ_p(0);
       for (int j = 1; j < Ap.NumCols(); j++) {
         for (int k = 1; k < Ap.NumCols(); k++) {
           P[j][k] = -2 * vv[j-1][k-1];
-          if (pid == 1 && j == k) {
+          if (party_id == 1 && j == k) {
             P[j][k] += one;
           }
         }
@@ -1066,7 +1066,7 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
 
     Mat<ZZ_p> Qsub;
     Qsub.SetDims(n, n - i);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < n; j++) {
         for (int k = 0; k < n - i; k++) {
           Qsub[j][k] = Q[j][k+i];
@@ -1076,7 +1076,7 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
 
     MultMat(Qsub, Qsub, P);
     Trunc(Qsub);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < n; j++) {
         for (int k = 0; k < n - i; k++) {
           Q[j][k+i] = Qsub[j][k];
@@ -1084,7 +1084,7 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
       }
     }
 
-    if (pid > 0) {
+    if (party_id > 0) {
       T[i][i] = B[0][0];
       T[i+1][i] = B[1][0];
       T[i][i+1] = B[0][1];
@@ -1097,7 +1097,7 @@ void MPCEnv::Tridiag(Mat<ZZ_p>& T, Mat<ZZ_p>& Q, Mat<ZZ_p>& A) {
     }
 
     Ap.SetDims(B.NumRows() - 1, B.NumCols() - 1);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < B.NumRows() - 1; j++) {
         for (int k = 0; k < B.NumCols() - 1; k++) {
           Ap[j][k] = B[j+1][k+1];
@@ -1119,7 +1119,7 @@ void MPCEnv::EigenDecomp(Mat<ZZ_p>& V, Vec<ZZ_p>& L, Mat<ZZ_p>& A) {
   Mat<ZZ_p> Ap, Q;
   Tridiag(Ap, Q, A);
 
-  if (pid == 0) {
+  if (party_id == 0) {
     V.SetDims(n, n);
   } else {
     transpose(V, Q);
@@ -1129,7 +1129,7 @@ void MPCEnv::EigenDecomp(Mat<ZZ_p>& V, Vec<ZZ_p>& L, Mat<ZZ_p>& A) {
     cout << "EigenDecomp: " << i << "-th eigenvalue" << endl;
     for (int it = 0; it < Param::ITER_PER_EVAL; it++) {
       ZZ_p shift = Ap[i][i];
-      if (pid > 0) {
+      if (party_id > 0) {
         for (int j = 0; j < Ap.NumCols(); j++) {
           Ap[j][j] -= shift;
         }
@@ -1141,7 +1141,7 @@ void MPCEnv::EigenDecomp(Mat<ZZ_p>& V, Vec<ZZ_p>& L, Mat<ZZ_p>& A) {
       MultMat(Ap, Q, R);
       Trunc(Ap);
 
-      if (pid > 0) {
+      if (party_id > 0) {
         for (int j = 0; j < Ap.NumCols(); j++) {
           Ap[j][j] += shift;
         }
@@ -1149,7 +1149,7 @@ void MPCEnv::EigenDecomp(Mat<ZZ_p>& V, Vec<ZZ_p>& L, Mat<ZZ_p>& A) {
 
       Mat<ZZ_p> Vsub;
       Vsub.SetDims(i + 1, n);
-      if (pid > 0) {
+      if (party_id > 0) {
         for (int j = 0; j < i + 1; j++) {
           Vsub[j] = V[j];
         }
@@ -1158,7 +1158,7 @@ void MPCEnv::EigenDecomp(Mat<ZZ_p>& V, Vec<ZZ_p>& L, Mat<ZZ_p>& A) {
       MultMat(Vsub, Q, Vsub);
       Trunc(Vsub);
 
-      if (pid > 0) {
+      if (party_id > 0) {
         for (int j = 0; j < i + 1; j++) {
           V[j] = Vsub[j];
         }
@@ -1172,7 +1172,7 @@ void MPCEnv::EigenDecomp(Mat<ZZ_p>& V, Vec<ZZ_p>& L, Mat<ZZ_p>& A) {
 
     Mat<ZZ_p> Ap_copy = Ap;
     Ap.SetDims(i, i);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int j = 0; j < i; j++) {
         for (int k = 0; k < i; k++) {
           Ap[j][k] = Ap_copy[j][k];
@@ -1198,14 +1198,14 @@ void MPCEnv::LessThanBitsAux(Vec<ZZ>& c, Mat<ZZ>& a, Mat<ZZ>& b, int public_flag
  
   if (public_flag == 0) {
     MultElem(x, a, b, fid);
-    if (pid > 0) {
+    if (party_id > 0) {
       x = a + b - 2 * x;
       Mod(x, fid);
     }
-  } else if (pid > 0) {
+  } else if (party_id > 0) {
     mul_elem(x, a, b);
     x = a + b - 2 * x;
-    if (pid == 2) {
+    if (party_id == 2) {
       x -= (public_flag == 1) ? a : b;
     }
     Mod(x, fid);
@@ -1215,7 +1215,7 @@ void MPCEnv::LessThanBitsAux(Vec<ZZ>& c, Mat<ZZ>& a, Mat<ZZ>& b, int public_flag
   PrefixOr(f, x, fid);
   x.kill();
  
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = L - 1; j >= 1; j--) {
         f[i][j] -= f[i][j - 1];
@@ -1227,7 +1227,7 @@ void MPCEnv::LessThanBitsAux(Vec<ZZ>& c, Mat<ZZ>& a, Mat<ZZ>& b, int public_flag
   if (public_flag == 2) {
     c.SetLength(n);
  
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int i = 0; i < n; i++) {
         c[i] = 0;
         for (int j = 0; j < L; j++) {
@@ -1246,7 +1246,7 @@ void MPCEnv::LessThanBitsAux(Vec<ZZ>& c, Mat<ZZ>& a, Mat<ZZ>& b, int public_flag
       b_arr[i].SetDims(L, 1);
     }
  
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int i = 0; i < n; i++) {
         f_arr[i][0] = f[i];
         for (int j = 0; j < L; j++) {
@@ -1259,7 +1259,7 @@ void MPCEnv::LessThanBitsAux(Vec<ZZ>& c, Mat<ZZ>& a, Mat<ZZ>& b, int public_flag
     MultMatParallel(c_arr, f_arr, b_arr, fid);
  
     c.SetLength(n);
-    if (pid > 0) {
+    if (party_id > 0) {
       for (int i = 0; i < n; i++) {
         c[i] = c_arr[i][0][0];
       }
@@ -1270,7 +1270,7 @@ void MPCEnv::LessThanBitsAux(Vec<ZZ>& c, Mat<ZZ>& a, Mat<ZZ>& b, int public_flag
 void MPCEnv::LessThan(Vec<ZZ_p>& c, Vec<ZZ_p>& a, Vec<ZZ_p>& b) {
   Vec<ZZ_p> a_cpy;
   a_cpy.SetLength(a.length());
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < a.length(); i++) {
       a_cpy[i] = a[i] - b[i];
     }
@@ -1284,10 +1284,10 @@ void MPCEnv::LessThan(Vec<ZZ_p>& c, Vec<ZZ_p>& a, Vec<ZZ_p>& b) {
 void MPCEnv::LessThanPublic(Vec<ZZ_p>& c, Vec<ZZ_p>& a, ZZ_p bpub) {
   Vec<ZZ_p> a_cpy;
   a_cpy.SetLength(a.length());
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < a.length(); i++) {
       a_cpy[i] = a[i];
-      if (pid == 1) {
+      if (party_id == 1) {
         a_cpy[i] -= bpub;
       }
     }
@@ -1309,7 +1309,7 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
 
   Vec<ZZ_p> r;
   Mat<ZZ> r_bits;
-  if (pid == 0) {
+  if (party_id == 0) {
     RandVec(r, n);
     NumToBits(r_bits, r, nbits);
 
@@ -1326,7 +1326,7 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
 
     SendVec(r, 2);
     SendMat(r_bits, 2, fid);
-  } else if (pid == 2) {
+  } else if (party_id == 2) {
     ReceiveVec(r, 0, n);
     ReceiveMat(r_bits, 0, n, nbits, fid);
   } else {
@@ -1337,7 +1337,7 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
   }
 
   Vec<ZZ_p> c;
-  if (pid == 0) {
+  if (party_id == 0) {
     c.SetLength(n);
   } else {
     c = 2 * a + r;
@@ -1346,7 +1346,7 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
   RevealSym(c);
 
   Mat<ZZ> c_bits;
-  if (pid == 0) {
+  if (party_id == 0) {
     c_bits.SetDims(n, nbits);
   } else {
     NumToBits(c_bits, c, nbits);
@@ -1358,10 +1358,10 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
 
   Vec<ZZ> c_xor_r;
   c_xor_r.SetLength(n);
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       c_xor_r[i] = r_bits[i][nbits-1] - 2 * c_bits[i][nbits-1] * r_bits[i][nbits-1];
-      if (pid == 1) {
+      if (party_id == 1) {
         c_xor_r[i] += c_bits[i][nbits-1];
       }
     }
@@ -1370,11 +1370,11 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
 
   Vec<ZZ> lsb;
   MultElem(lsb, c_xor_r, no_overflow, fid);
-  if (pid > 0) {
+  if (party_id > 0) {
     lsb *= 2;
     for (int i = 0; i < n; i++) {
       lsb[i] -= no_overflow[i] + c_xor_r[i];
-      if (pid == 1) {
+      if (party_id == 1) {
         lsb[i] += 1;
       }
     }
@@ -1382,7 +1382,7 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
   }
 
   // 0, 1 -> 1, 2
-  if (pid == 1) {
+  if (party_id == 1) {
     for (int i = 0; i < n; i++) {
       lsb[i] += 1;
     }
@@ -1397,13 +1397,13 @@ void MPCEnv::IsPositive(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
 
 void MPCEnv::FlipBit(Vec<ZZ_p>& b, Vec<ZZ_p>& a) {
   if (debug) cout << "FlipBit: " << a.length() << endl;
-  if (pid == 0) {
+  if (party_id == 0) {
     b.SetLength(a.length());
   } else {
     b = -a;
   }
 
-  if (pid == 1) {
+  if (party_id == 1) {
     for (int i = 0; i < b.length(); i++) {
       b[i] += 1;
     }
@@ -1459,11 +1459,11 @@ void MPCEnv::FPSqrt(Vec<ZZ_p>& b, Vec<ZZ_p>& b_inv, Vec<ZZ_p>& a) {
   Trunc(a_scaled_sq);
 
   Vec<ZZ_p> scaled_est;
-  if (pid == 0) {
+  if (party_id == 0) {
     scaled_est.SetLength(n);
   } else {
     scaled_est = - 4 * a_scaled + 2 * a_scaled_sq;
-    if (pid == 1) {
+    if (party_id == 1) {
       ZZ_p coeff;
       DoubleToFP(coeff, 2.9581, Param::NBIT_K, Param::NBIT_F);
       for (int i = 0; i < n; i++) {
@@ -1494,7 +1494,7 @@ void MPCEnv::FPSqrt(Vec<ZZ_p>& b, Vec<ZZ_p>& b_inv, Vec<ZZ_p>& a) {
     MultElem(r, h_and_g[0], h_and_g[1]);
     Trunc(r);
     r = -r;
-    if (pid == 1) {
+    if (party_id == 1) {
       for (int i = 0; i < n; i++) {
         r[0][i] += onepointfive;
       }
@@ -1565,11 +1565,11 @@ void MPCEnv::FPDiv(Vec<ZZ_p>& c, Vec<ZZ_p>& a, Vec<ZZ_p>& b) {
   Trunc(b_scaled_sq);
 
   Vec<ZZ_p> scaled_est;
-  if (pid == 0) {
+  if (party_id == 0) {
     scaled_est.SetLength(n);
   } else {
     scaled_est = - 10 * b_scaled + 5 * b_scaled_sq;
-    if (pid == 1) {
+    if (party_id == 1) {
       ZZ_p coeff;
       DoubleToFP(coeff, 5.9430, Param::NBIT_K, Param::NBIT_F);
       AddScalar(scaled_est, coeff);
@@ -1590,7 +1590,7 @@ void MPCEnv::FPDiv(Vec<ZZ_p>& c, Vec<ZZ_p>& a, Vec<ZZ_p>& b) {
   IntToFP(one, 1, Param::NBIT_K, Param::NBIT_F);
 
   x *= -1;
-  if (pid == 1) {
+  if (party_id == 1) {
     for (int i = 0; i < x.length(); i++) {
       x[i] += one;
     }
@@ -1606,7 +1606,7 @@ void MPCEnv::FPDiv(Vec<ZZ_p>& c, Vec<ZZ_p>& a, Vec<ZZ_p>& b) {
     BeaverPartition(yr, ym, y);
 
     Vec<ZZ_p> xpr = xr;
-    if (pid > 0) {
+    if (party_id > 0) {
       AddScalar(xpr, one);
     }
 
@@ -1622,7 +1622,7 @@ void MPCEnv::FPDiv(Vec<ZZ_p>& c, Vec<ZZ_p>& a, Vec<ZZ_p>& b) {
     Trunc(y);
   }
 
-  if (pid == 1) {
+  if (party_id == 1) {
     for (int i = 0; i < x.length(); i++) {
       x[i] += one;
     }
@@ -1637,7 +1637,7 @@ void MPCEnv::Trunc(Mat<ZZ_p>& a, int k, int m) {
 
   Mat<ZZ_p> r;
   Mat<ZZ_p> r_low;
-  if (pid == 0) {
+  if (party_id == 0) {
     RandMatBits(r, a.NumRows(), a.NumCols(), k + Param::NBIT_V);
 
     r_low.SetDims(a.NumRows(), a.NumCols());
@@ -1659,7 +1659,7 @@ void MPCEnv::Trunc(Mat<ZZ_p>& a, int k, int m) {
 
     SendMat(r, 2);
     SendMat(r_low, 2);
-  } else if (pid == 2) {
+  } else if (party_id == 2) {
     ReceiveMat(r, 0, a.NumRows(), a.NumCols());
     ReceiveMat(r_low, 0, a.NumRows(), a.NumCols());
   } else {
@@ -1670,7 +1670,7 @@ void MPCEnv::Trunc(Mat<ZZ_p>& a, int k, int m) {
   }
 
   Mat<ZZ_p> c;
-  if (pid > 0) {
+  if (party_id > 0) {
     c = a + r;
   } else {
     c.SetDims(a.NumRows(), a.NumCols());
@@ -1680,7 +1680,7 @@ void MPCEnv::Trunc(Mat<ZZ_p>& a, int k, int m) {
   
   Mat<ZZ_p> c_low;
   c_low.SetDims(a.NumRows(), a.NumCols());
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < a.NumRows(); i++) {
       for (int j = 0; j < a.NumCols(); j++) {
         c_low[i][j] = conv<ZZ_p>(trunc_ZZ(rep(c[i][j]), m));
@@ -1688,9 +1688,9 @@ void MPCEnv::Trunc(Mat<ZZ_p>& a, int k, int m) {
     }
   }
 
-  if (pid > 0) {
+  if (party_id > 0) {
     a += r_low;
-    if (pid == 1) {
+    if (party_id == 1) {
       a -= c_low;
     }
 
@@ -1725,7 +1725,7 @@ void MPCEnv::PrefixOr(Mat<ZZ>& b, Mat<ZZ>& a, int fid) {
   Mat<ZZ> a_padded;
   a_padded.SetDims(n, L2);
 
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < L2; j++) {
         if (j < L2 - a.NumCols())
@@ -1744,7 +1744,7 @@ void MPCEnv::PrefixOr(Mat<ZZ>& b, Mat<ZZ>& a, int fid) {
   Mat<ZZ> xpre;
   xpre.SetDims(n * L, L);
   
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < L; j++) {
         int xpi = L * i + j;
@@ -1765,7 +1765,7 @@ void MPCEnv::PrefixOr(Mat<ZZ>& b, Mat<ZZ>& a, int fid) {
     f[i].SetDims(1, L);
   }
 
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < L; j++) {
         if (j == 0) {
@@ -1785,7 +1785,7 @@ void MPCEnv::PrefixOr(Mat<ZZ>& b, Mat<ZZ>& a, int fid) {
     tmp[i].SetDims(L, L);
   }
 
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < L; j++) {
         tmp[i][j] = a_padded[L * i + j];
@@ -1800,7 +1800,7 @@ void MPCEnv::PrefixOr(Mat<ZZ>& b, Mat<ZZ>& a, int fid) {
 
   Mat<ZZ> cpre;
   cpre.SetDims(n * L, L);
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < L; j++) {
         int cpi = L * i + j;
@@ -1822,7 +1822,7 @@ void MPCEnv::PrefixOr(Mat<ZZ>& b, Mat<ZZ>& a, int fid) {
     bdot[i].SetDims(1, L);
   }
 
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < L; j++) {
         bdot[i][0][j] = bdot_vec[L * i + j];
@@ -1840,7 +1840,7 @@ void MPCEnv::PrefixOr(Mat<ZZ>& b, Mat<ZZ>& a, int fid) {
   bdot.kill();
 
   b.SetDims(n, a.NumCols());
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < a.NumCols(); j++) {
         int j_pad = L2 - a.NumCols() + j; 
@@ -1867,9 +1867,9 @@ void MPCEnv::FanInOr(Vec<ZZ>& b, Mat<ZZ>& a, int fid) {
   Vec<ZZ> a_sum;
   a_sum.SetLength(n);
 
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
-      a_sum[i] = (pid == 1) ? 1 : 0;
+      a_sum[i] = (party_id == 1) ? 1 : 0;
       for (int j = 0; j < d; j++) {
         a_sum[i] += a[i][j];
       }
@@ -1900,7 +1900,7 @@ void MPCEnv::FanInOr(Vec<ZZ>& b, Mat<ZZ>& a, int fid) {
 void MPCEnv::ShareRandomBits(Vec<ZZ_p>& r, Mat<ZZ>& rbits, int k, int n, int fid) {
   if (debug) cout << "ShareRandomBits: " << n << endl;
 
-  if (pid == 0) {
+  if (party_id == 0) {
     RandVecBits(r, n, k + Param::NBIT_V);
     NumToBits(rbits, r, k);
 
@@ -1918,7 +1918,7 @@ void MPCEnv::ShareRandomBits(Vec<ZZ_p>& r, Mat<ZZ>& rbits, int k, int n, int fid
 
     SendVec(r, 2);
     SendMat(rbits, 2, fid);
-  } else if (pid == 2) {
+  } else if (party_id == 2) {
     ReceiveVec(r, 0, n);
     ReceiveMat(rbits, 0, n, k, fid);
   } else {
@@ -1948,7 +1948,7 @@ void MPCEnv::TableLookup(Mat<ZZ_p>& b, Vec<ZZ>& a, int table_id, int fid) {
 
   Vec<ZZ_p> a_exp;
   a_exp.SetLength(n);
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       a_exp[i] = conv<ZZ_p>(a[i]);
     }
@@ -1972,7 +1972,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
   ShareRandomBits(r, rbits, Param::NBIT_K, n, fid);
 
   Vec<ZZ_p> e;
-  if (pid == 0) {
+  if (party_id == 0) {
     e.SetLength(n);
   } else {
     e = a + r;
@@ -1982,7 +1982,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
   RevealSym(e);
 
   Mat<ZZ> ebits;
-  if (pid == 0) {
+  if (party_id == 0) {
     ebits.SetDims(n, Param::NBIT_K);
   } else {
     NumToBits(ebits, e, Param::NBIT_K);
@@ -1991,9 +1991,9 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
 
   Vec<ZZ> c;
   LessThanBitsPublic(c, rbits, ebits, fid);
-  if (pid > 0) {
+  if (party_id > 0) {
     c = -c;
-    if (pid == 1) {
+    if (party_id == 1) {
       for (int i = 0; i < n; i++) {
         c[i] += 1;
       }
@@ -2003,12 +2003,12 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
 
   Mat<ZZ> ep;
   ep.SetDims(n, Param::NBIT_K + 1);
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       ep[i][0] = c[i];
       for (int j = 1; j < Param::NBIT_K + 1; j++) {
         ep[i][j] = (1 - 2 * ebits[i][j-1]) * rbits[i][j-1];
-        if (pid == 1) {
+        if (party_id == 1) {
           ep[i][j] += ebits[i][j-1];
         }
       }
@@ -2023,7 +2023,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
 
   Mat<ZZ> tpneg;
   tpneg.SetDims(n, Param::NBIT_K);
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < Param::NBIT_K; j++) {
         tpneg[i][j] = E[i][j] - rbits[i][j] * (1 - ebits[i][j]);
@@ -2042,7 +2042,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
   Mat<ZZ> efir, rfir;
   efir.SetDims(n, Param::NBIT_K);
   rfir.SetDims(n, Param::NBIT_K);
-  if (pid > 0) {
+  if (party_id > 0) {
     mul_elem(efir, ebits, Tneg);
     Mod(efir, fid);
   }
@@ -2058,12 +2058,12 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
   Mat<ZZ> odd_bits, even_bits;
   odd_bits.SetDims(n, half_len);
   even_bits.SetDims(n, half_len);
-  if (pid > 0) {
+  if (party_id > 0) {
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < half_len; j++) {
-        odd_bits[i][j] = (pid == 1) ? (1 - Tneg[i][2*j+1]) : -Tneg[i][2*j+1];
+        odd_bits[i][j] = (party_id == 1) ? (1 - Tneg[i][2*j+1]) : -Tneg[i][2*j+1];
         if ((2 * j + 2) < Param::NBIT_K) {
-          even_bits[i][j] = (pid == 1) ? (1 - Tneg[i][2*j+2]) : -Tneg[i][2*j+2];
+          even_bits[i][j] = (party_id == 1) ? (1 - Tneg[i][2*j+2]) : -Tneg[i][2*j+2];
         } else {
           even_bits[i][j] = 0;
         }
@@ -2082,7 +2082,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
       odd_bit_sum[i] += odd_bits[i][j];
       even_bit_sum[i] += even_bits[i][j];
     }
-    if (pid == 1) {
+    if (party_id == 1) {
       odd_bit_sum[i] += 1;
       even_bit_sum[i] += 1;
     }
@@ -2095,7 +2095,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
   // If double_flag = true, then use odd_bits, otherwise use even_bits
 
   Vec<ZZ> diff;
-  if (pid == 0) {
+  if (party_id == 0) {
     diff.SetLength(n);
   } else {
     diff = odd_bit_sum - even_bit_sum;
@@ -2105,7 +2105,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
   double_flag.kill();
 
   Vec<ZZ> chosen_bit_sum;
-  if (pid == 0) {
+  if (party_id == 0) {
     chosen_bit_sum.SetLength(n);
   } else {
     chosen_bit_sum = even_bit_sum + diff;
@@ -2118,7 +2118,7 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
   Mat<ZZ_p> b_mat;
   TableLookup(b_mat, chosen_bit_sum, 1, fid);
 
-  if (pid > 0) {
+  if (party_id > 0) {
     b_sqrt = b_mat[0];
     b = b_mat[1];
   } else {
@@ -2129,27 +2129,27 @@ void MPCEnv::NormalizerEvenExp(Vec<ZZ_p>& b, Vec<ZZ_p>& b_sqrt, Vec<ZZ_p>& a) {
 
 void MPCEnv::ReadFromFile(ZZ_p& a, ifstream& ifs) {
   Vec<ZZ_p> avec;
-  if (pid > 0) {
+  if (party_id > 0) {
     Read(avec, ifs, 1);
     a = avec[0];
   }
 }
 void MPCEnv::ReadFromFile(Vec<ZZ_p>& a, ifstream& ifs, int n) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Read(a, ifs, n);
   } else {
     a.SetLength(n);
   }
 }
 void MPCEnv::ReadFromFile(Mat<ZZ_p>& a, ifstream& ifs, int nrow, int ncol) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Read(a, ifs, nrow, ncol);
   } else {
     a.SetDims(nrow, ncol);
   }
 }
 void MPCEnv::WriteToFile(ZZ_p& a, fstream& ofs) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Vec<ZZ_p> avec;
     avec.SetLength(1);
     avec[0] = a;
@@ -2157,12 +2157,12 @@ void MPCEnv::WriteToFile(ZZ_p& a, fstream& ofs) {
   }
 }
 void MPCEnv::WriteToFile(Vec<ZZ_p>& a, fstream& ofs) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Write(a, ofs);
   }
 }
 void MPCEnv::WriteToFile(Mat<ZZ_p>& a, fstream& ofs) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Write(a, ofs);
   }
 }
@@ -2247,14 +2247,14 @@ void MPCEnv::Write(Mat<ZZ_p>& a, fstream& ofs) {
 }
 
 void MPCEnv::SkipData(ifstream& ifs, int n) {
-  if (pid > 0) {
+  if (party_id > 0) {
     assert(ifs.is_open());
     ifs.ignore(n * ZZ_bytes[0]);
   }
 }
 
 void MPCEnv::SkipData(ifstream& ifs, int nrows, int ncols) {
-  if (pid > 0) {
+  if (party_id > 0) {
     assert(ifs.is_open());
     for (int i = 0; i < nrows; i++) {
       ifs.ignore(ncols * ZZ_bytes[0]);
@@ -2291,40 +2291,40 @@ void MPCEnv::Read(Mat<ZZ_p>& a, ifstream& ifs, int nrows, int ncols) {
   }
 }
 
-void MPCEnv::SendInt(int num, int to_pid) {
-  cout << "SendInt called: num(" << num << "), to_pid(" << to_pid << ")" << endl;
+void MPCEnv::SendInt(int num, int to_party_id) {
+  cout << "SendInt called: num(" << num << "), to_party_id(" << to_party_id << ")" << endl;
   *((int *)buf) = num;
-  sockets.find(to_pid)->second.Send(buf, sizeof(int));
+  sockets.find(to_party_id)->second.Send(buf, sizeof(int));
 }
 
-int MPCEnv::ReceiveInt(int from_pid) {
-  cout << "ReceiveInt called: from_pid(" << from_pid << ")" << endl;
-  sockets.find(from_pid)->second.Receive(buf, sizeof(int));
+int MPCEnv::ReceiveInt(int from_party_id) {
+  cout << "ReceiveInt called: from_party_id(" << from_party_id << ")" << endl;
+  sockets.find(from_party_id)->second.Receive(buf, sizeof(int));
   return *((int *)buf);
 }
 
-void MPCEnv::SendBool(bool flag, int to_pid) {
-  cout << "SendBool called: flag(" << flag << "), to_pid(" << to_pid << ")" << endl;
+void MPCEnv::SendBool(bool flag, int to_party_id) {
+  cout << "SendBool called: flag(" << flag << "), to_party_id(" << to_party_id << ")" << endl;
   *((bool *)buf) = flag;
-  sockets.find(to_pid)->second.Send(buf, sizeof(bool));
+  sockets.find(to_party_id)->second.Send(buf, sizeof(bool));
 }
 
-bool MPCEnv::ReceiveBool(int from_pid) {
-  cout << "ReceiveBool called: from_pid(" << from_pid << ")" << endl;
-  sockets.find(from_pid)->second.Receive(buf, sizeof(bool));
+bool MPCEnv::ReceiveBool(int from_party_id) {
+  cout << "ReceiveBool called: from_party_id(" << from_party_id << ")" << endl;
+  sockets.find(from_party_id)->second.Receive(buf, sizeof(bool));
   return *((bool *)buf);
 }
 
-void MPCEnv::SwitchSeed(int pid) {
-  prg.find(cur_prg_pid)->second = GetCurrentRandomStream();
-  SetSeed(prg.find(pid)->second);
-  cur_prg_pid = pid;
+void MPCEnv::SwitchSeed(int party_id) {
+  prg.find(cur_prg_party_id)->second = GetCurrentRandomStream();
+  SetSeed(prg.find(party_id)->second);
+  cur_prg_party_id = party_id;
 }
 
-void MPCEnv::ExportSeed(fstream& ofs, int pid) {
+void MPCEnv::ExportSeed(fstream& ofs, int party_id) {
   assert(ofs.is_open());
 
-  RandomStream rs = prg.find(pid)->second;
+  RandomStream rs = prg.find(party_id)->second;
   rs.serialize(buf);
 
   ofs.write((const char *)buf, RandomStream::numBytes());
@@ -2354,7 +2354,7 @@ void MPCEnv::ImportSeed(int newid, ifstream& ifs) {
 }
 
 void MPCEnv::BeaverReadFromFile(Mat<ZZ_p>& ar, Mat<ZZ_p>& am, ifstream& ifs, int nrow, int ncol) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Read(ar, ifs, nrow, ncol);
   } else {
     ar.SetDims(nrow, ncol);
@@ -2363,7 +2363,7 @@ void MPCEnv::BeaverReadFromFile(Mat<ZZ_p>& ar, Mat<ZZ_p>& am, ifstream& ifs, int
 }
 
 void MPCEnv::BeaverReadFromFile(Vec<ZZ_p>& ar, Vec<ZZ_p>& am, ifstream& ifs, int n) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Read(ar, ifs, n);
   } else {
     ar.SetLength(n);
@@ -2372,7 +2372,7 @@ void MPCEnv::BeaverReadFromFile(Vec<ZZ_p>& ar, Vec<ZZ_p>& am, ifstream& ifs, int
 }
 
 void MPCEnv::BeaverReadFromFileWithFilter(Vec<ZZ_p>& ar, Vec<ZZ_p>& am, ifstream& ifs, Vec<ZZ_p>& filt) {
-  if (pid > 0) {
+  if (party_id > 0) {
     ReadWithFilter(ar, ifs, filt);
   } else {
     ar.SetLength(filt.length());
@@ -2381,21 +2381,21 @@ void MPCEnv::BeaverReadFromFileWithFilter(Vec<ZZ_p>& ar, Vec<ZZ_p>& am, ifstream
 }
 
 void MPCEnv::BeaverWriteToFile(Vec<ZZ_p>& ar, Vec<ZZ_p>& am, fstream& ofs) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Write(ar, ofs);
   }
   Write(am, ofs);
 }
 
 void MPCEnv::BeaverWriteToFile(Mat<ZZ_p>& ar, Mat<ZZ_p>& am, fstream& ofs) {
-  if (pid > 0) {
+  if (party_id > 0) {
     Write(ar, ofs);
   }
   Write(am, ofs);
 }
 
 void MPCEnv::BeaverMultElem(Vec<ZZ_p>& ab, Vec<ZZ_p>& ar, Vec<ZZ_p>& am, Vec<ZZ_p>& br, Vec<ZZ_p>& bm, int fid) {
-  if (pid == 0) {
+  if (party_id == 0) {
     Vec<ZZ_p> ambm;
     mul_elem(ambm, am, bm);
     ab += ambm;
@@ -2411,7 +2411,7 @@ void MPCEnv::BeaverMultElem(Vec<ZZ_p>& ab, Vec<ZZ_p>& ar, Vec<ZZ_p>& am, Vec<ZZ_
     for (int i = first; i < last; i++) {
       ab[i] += ar[i] * bm[i];
       ab[i] += am[i] * br[i];
-      if (pid == 1) {
+      if (party_id == 1) {
         ab[i] += ar[i] * br[i];
       }
     }
@@ -2421,7 +2421,7 @@ void MPCEnv::BeaverMultElem(Vec<ZZ_p>& ab, Vec<ZZ_p>& ar, Vec<ZZ_p>& am, Vec<ZZ_
 }
 
 void MPCEnv::BeaverMult(Mat<ZZ_p>& ab, Mat<ZZ_p>& ar, Mat<ZZ_p>& am, Mat<ZZ_p>& br, Mat<ZZ_p>& bm, bool elem_wise, int fid) {
-  if (pid == 0) {
+  if (party_id == 0) {
     Mat<ZZ_p> ambm;
     if (elem_wise) {
       mul_elem(ambm, am, bm);
@@ -2443,7 +2443,7 @@ void MPCEnv::BeaverMult(Mat<ZZ_p>& ab, Mat<ZZ_p>& ar, Mat<ZZ_p>& am, Mat<ZZ_p>& 
         for (int j = 0; j < ab.NumCols(); j++) {
           ab[i][j] += ar[i][j] * bm[i][j];
           ab[i][j] += am[i][j] * br[i][j];
-          if (pid == 1) {
+          if (party_id == 1) {
             ab[i][j] += ar[i][j] * br[i][j];
           }
         }
@@ -2454,7 +2454,7 @@ void MPCEnv::BeaverMult(Mat<ZZ_p>& ab, Mat<ZZ_p>& ar, Mat<ZZ_p>& am, Mat<ZZ_p>& 
     } else {
       ab += ar * bm;
       ab += am * br;
-      if (pid == 1) {
+      if (party_id == 1) {
         ab += ar * br;
       }
     }
@@ -2462,7 +2462,7 @@ void MPCEnv::BeaverMult(Mat<ZZ_p>& ab, Mat<ZZ_p>& ar, Mat<ZZ_p>& am, Mat<ZZ_p>& 
 }
 
 void MPCEnv::BeaverMultElem(Vec<ZZ>& ab, Vec<ZZ>& ar, Vec<ZZ>& am, Vec<ZZ>& br, Vec<ZZ>& bm, int fid) {
-  if (pid == 0) {
+  if (party_id == 0) {
     Vec<ZZ> ambm;
     mul_elem(ambm, am, bm);
     ab += ambm;
@@ -2472,7 +2472,7 @@ void MPCEnv::BeaverMultElem(Vec<ZZ>& ab, Vec<ZZ>& ar, Vec<ZZ>& am, Vec<ZZ>& br, 
     for (int i = first; i < last; i++) {
       ab[i] += ar[i] * bm[i];
       ab[i] += am[i] * br[i];
-      if (pid == 1) {
+      if (party_id == 1) {
         ab[i] += ar[i] * br[i];
       }
     }
@@ -2484,7 +2484,7 @@ void MPCEnv::BeaverMultElem(Vec<ZZ>& ab, Vec<ZZ>& ar, Vec<ZZ>& am, Vec<ZZ>& br, 
 }
 
 void MPCEnv::BeaverMult(Mat<ZZ>& ab, Mat<ZZ>& ar, Mat<ZZ>& am, Mat<ZZ>& br, Mat<ZZ>& bm, bool elem_wise, int fid) {
-  if (pid == 0) {
+  if (party_id == 0) {
     Mat<ZZ> ambm;
     if (elem_wise) {
       mul_elem(ambm, am, bm);
@@ -2500,7 +2500,7 @@ void MPCEnv::BeaverMult(Mat<ZZ>& ab, Mat<ZZ>& ar, Mat<ZZ>& am, Mat<ZZ>& br, Mat<
         for (int j = 0; j < ab.NumCols(); j++) {
           ab[i][j] += ar[i][j] * bm[i][j];
           ab[i][j] += am[i][j] * br[i][j];
-          if (pid == 1) {
+          if (party_id == 1) {
             ab[i][j] += ar[i][j] * br[i][j];
           }
         }
@@ -2511,7 +2511,7 @@ void MPCEnv::BeaverMult(Mat<ZZ>& ab, Mat<ZZ>& ar, Mat<ZZ>& am, Mat<ZZ>& br, Mat<
     } else {
       ab += ar * bm;
       ab += am * br;
-      if (pid == 1) {
+      if (party_id == 1) {
         ab += ar * br;
       }
     }

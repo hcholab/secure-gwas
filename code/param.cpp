@@ -4,6 +4,7 @@
 
 template<class T>
 bool Param::Convert(string s, T &var, string name) {
+  // Convert string to variable (like int)
   istringstream iss(s);
   iss >> std::skipws >> var >> std::skipws;
   if (iss.tellg() != -1) {
@@ -14,6 +15,7 @@ bool Param::Convert(string s, T &var, string name) {
 }
 
 bool Param::ParseFile(const char *param_file) {
+  // Open and parse parameter file
   ifstream pfile(param_file);
   if (!pfile.is_open()) {
     cout << "Failed to open parameter file: " << param_file << endl;

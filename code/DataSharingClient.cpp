@@ -159,9 +159,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  string pid_str(argv[1]);
-  int pid;
-  if (!Param::Convert(pid_str, pid, "party_id") || pid < 0 || pid > 3) {
+  string party_id_str(argv[1]);
+  int party_id;
+  if (!Param::Convert(party_id_str, party_id, "party_id") || party_id < 0 || party_id > 3) {
     cout << "Error: party_id should be 0, 1, 2, or 3" << endl;
     return 1;
   }
@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
   }
 
   string data_dir;
-  if (pid == 3) {
+  if (party_id == 3) {
     if (argc < 4) {
       cout << "Error: for P3/SP, data directory should be provided as the last argument" << endl;
       return 1;
@@ -195,14 +195,14 @@ int main(int argc, char** argv) {
 
   /* Initialize MPC environment */
   MPCEnv mpc;
-  if (!mpc.Initialize(pid, pairs)) {
+  if (!mpc.Initialize(party_id, pairs)) {
     cout << "MPC environment initialization failed" << endl;
     return 1;
   }
 
   bool success;
-  if (pid < 3) {
-    success = data_sharing_protocol(mpc, pid);
+  if (party_id < 3) {
+    success = data_sharing_protocol(mpc, party_id);
   } else {
     /* Stream data upon request */
     int signal = mpc.ReceiveInt(1);
@@ -220,9 +220,9 @@ int main(int argc, char** argv) {
 
   // This is here just to keep P0 online until the end for data transfer
   // In practice, P0 would send data in advance before each phase and go offline
-  if (pid == 0) {
+  if (party_id == 0) {
     mpc.ReceiveBool(2);
-  } else if (pid == 2) {
+  } else if (party_id == 2) {
     mpc.SendBool(true, 0);
   }
 

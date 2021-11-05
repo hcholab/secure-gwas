@@ -16,9 +16,9 @@ public:
   static const int GM_CODE = 3;
   static const int GMP_CODE = 4;
 
-  explicit GwasIterator(MPCEnv& mpc, int pid) {
+  explicit GwasIterator(MPCEnv& mpc, int party_id) {
     this->mpc = &mpc;
-    this->pid = pid;
+    this->party_id = party_id;
   }
 
   void Init(bool pheno_flag, bool missing_flag) {
@@ -27,7 +27,7 @@ public:
 
     index = 0;
     num_left = Param::NUM_INDS;
-    if (pid == 1) {
+    if (party_id == 1) {
       mpc->SendInt(TransferMode(), 3);
     }
 
@@ -35,7 +35,7 @@ public:
   }
 
   void Terminate() {
-    if (pid == 1) {
+    if (party_id == 1) {
       mpc->SendInt(TERM_CODE, 3);
     }
   }
@@ -90,7 +90,7 @@ public:
 
 private:
   MPCEnv *mpc;
-  int pid;
+  int party_id;
   int num_left;
   int index;
   bool pheno_flag;
@@ -106,7 +106,7 @@ private:
       g.SetDims(1, Param::NUM_SNPS);
     }
 
-    if (pid == 2) {
+    if (party_id == 2) {
       if (pheno_flag) {
         mpc->ReceiveVec(p, 3, 1 + Param::NUM_COVS);
       }
@@ -116,7 +116,7 @@ private:
       } else {
         mpc->ReceiveMat(g, 3, 1, Param::NUM_SNPS);
       }
-    } else if (pid == 1) {
+    } else if (party_id == 1) {
       mpc->SwitchSeed(3);
       if (pheno_flag) {
         MPCEnv::RandVec(p, 1 + Param::NUM_COVS);
