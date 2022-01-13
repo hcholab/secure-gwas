@@ -4,6 +4,7 @@
 #include "gwasiter.h"
 #include "mpc.h"
 #include "util.h"
+#include "filereader.cpp"
 #include <vector>
 #include <NTL/mat_ZZ_p.h>
 #include <NTL/mat_ZZ.h>
@@ -467,8 +468,48 @@ bool logireg_protocol(MPCEnv& mpc, int party_id) {
   return true;
 }
 
-bool data_sharing_protocol(MPCEnv& mpc, int party_id) {
+void read_next_GMP_from_files(Mat<ZZ_p>& g, Vec<ZZ_p>& m, Vec<ZZ_p>& p, ifstream& fin_g, ifstream& fin_m, ifstream& fin_p) {
+    g.SetDims(3, Param::NUM_SNPS);
+    m.SetLength(Param::NUM_SNPS);
+    p.SetLength(1 + Param::NUM_COVS);
+
+    string line;
+    string val;
+
+    if (!fin_m.is_open() || !getline(fin_m, line)) {
+        cout << "Error: could not read line from m" << endl;
+        assert(false);
+    }
+    istringstream iss_m(line);
+    for (int i = 0; i < m.length(); i++) {
+        iss_m >> val;
+        m[i] = conv<ZZ_p>(conv<ZZ>(val.c_str()));
+    }
+
+    if (!fin_p.is_open() || !getline(fin_p, line)) {
+        assert(false);
+    }
+    istringstream iss_p(line);
+    for (int i = 0; i < p.length(); i++) {
+        iss_p >> val;
+        p[i] = conv<ZZ_p>(conv<ZZ>(val.c_str()));
+    }
+
+    if (!fin_g.is_open() || !getline(fin_g, line)) {
+        assert(false);
+    }
+    istringstream iss_g(line);
+    for (int i = 0; i < g.NumRows(); i++) {
+        for (int j = 0; j < g.NumCols(); j++) {
+            iss_g >> val;
+            g[i][j] = conv<ZZ_p>(conv<ZZ>(val.c_str()));
+        }
+    }
+}
+
+bool data_sharing_protocol(MPCEnv& mpc, int party_id, string data_dir) {
   int n = Param::NUM_INDS;
+  assert(n == Param::NUM_INDS_SP_1 + Param::NUM_INDS_SP_2); // sanity check
 
   fstream fs;
 
@@ -487,8 +528,8 @@ bool data_sharing_protocol(MPCEnv& mpc, int party_id) {
     }
   }
 
-  GwasIterator git(mpc, party_id);
-
+  RandomNumberGenerator rng(Param::MY_PRIVATE_KEY_HEX, Param::OTHER_PUBLIC_KEY_HEX, party_id);    
+  GwasIterator git(mpc, rng, party_id);
   git.Init(true, true);
 
   long bsize = n / 10;
@@ -496,11 +537,19 @@ bool data_sharing_protocol(MPCEnv& mpc, int party_id) {
   cout << "Begin processing:" << endl;
 
   tic();
+
+  ifstream fin_g(data_dir + "/g.bin");
+  ifstream fin_m(data_dir + "/m.bin"); 
+  ifstream fin_p(data_dir + "/p.bin");
   for (int i = 0; i < n; i++) {
     Mat<ZZ_p> g;
     Vec<ZZ_p> miss, p;
 
-    git.GetNextGMP(g, miss, p);
+    if ((i < Param::NUM_INDS_SP_1 && party_id == 1) || (i >= Param::NUM_INDS_SP_1 && party_id == 2)) {
+      read_next_GMP_from_files(g, miss, p, fin_g, fin_m, fin_p);
+    } else {
+      git.GetNextGMP(g, miss, p);
+    }
 
     if (party_id > 0) {
       pheno[i] = p[0];
@@ -526,8 +575,9 @@ bool data_sharing_protocol(MPCEnv& mpc, int party_id) {
       cout << "\t" << i+1 << " / " << n << ", "; toc(); tic();
     }
   }
-
-  git.Terminate();
+  fin_g.close();
+  fin_m.close();
+  fin_p.close();
 
   fs.close();
 

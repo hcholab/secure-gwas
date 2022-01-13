@@ -155,14 +155,14 @@ bool send_stream(string data_dir, MPCEnv& mpc, int mode) {
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    cout << "Usage: DataSharingClient party_id param_file [data_dir (for P3/SP)]" << endl;
-    return 1;
+    cout << "Usage: DataSharingClient party_id param_file [data_dir (for SPs)]" << endl;
+    return 1; 
   }
 
   string party_id_str(argv[1]);
   int party_id;
-  if (!Param::Convert(party_id_str, party_id, "party_id") || party_id < 0 || party_id > 3) {
-    cout << "Error: party_id should be 0, 1, 2, or 3" << endl;
+  if (!Param::Convert(party_id_str, party_id, "party_id") || party_id < 0 || party_id > 2) {
+    cout << "Error: party_id should be 0, 1, or 2" << endl;
     return 1;
   }
 
@@ -172,9 +172,9 @@ int main(int argc, char** argv) {
   }
 
   string data_dir;
-  if (party_id == 3) {
+  if (party_id == 1 || party_id == 2) {
     if (argc < 4) {
-      cout << "Error: for P3/SP, data directory should be provided as the last argument" << endl;
+      cout << "Error: for SPs, data directory should be provided as the last argument" << endl;
       return 1;
     }
 
@@ -190,8 +190,6 @@ int main(int argc, char** argv) {
   pairs.push_back(make_pair(0, 1));
   pairs.push_back(make_pair(0, 2));
   pairs.push_back(make_pair(1, 2));
-  pairs.push_back(make_pair(1, 3));
-  pairs.push_back(make_pair(2, 3));
 
   /* Initialize MPC environment */
   MPCEnv mpc;
@@ -200,24 +198,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  bool success;
-  if (party_id < 3) {
-    success = data_sharing_protocol(mpc, party_id);
-  } else {
-    /* Stream data upon request */
-    int signal = mpc.ReceiveInt(1);
-
-    while (signal != GwasIterator::TERM_CODE) {
-      success = send_stream(data_dir, mpc, signal);
-      if (!success) break;
-
-      signal = mpc.ReceiveInt(1);
-    }
-
-    cout << "Done with streaming data" << endl;
-    success = true;
-  }
-
+  bool success = data_sharing_protocol(mpc, party_id, data_dir);
+ 
   // This is here just to keep P0 online until the end for data transfer
   // In practice, P0 would send data in advance before each phase and go offline
   if (party_id == 0) {

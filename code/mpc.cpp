@@ -213,10 +213,6 @@ bool MPCEnv::SetupChannels(vector< pair<int, int> > &pairs) {
       port = Param::PORT_P0_P2;
     } else if (p1 == 1 && p2 == 2) {
       port = Param::PORT_P1_P2;
-    } else if (p1 == 1 && p2 == 3) {
-      port = Param::PORT_P1_P3;
-    } else if (p1 == 2 && p2 == 3) {
-      port = Param::PORT_P2_P3;
     }
 
     ostringstream oss;

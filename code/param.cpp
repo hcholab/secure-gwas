@@ -34,16 +34,16 @@ bool Param::ParseFile(const char *param_file) {
     getline(pfile, v);
 
     bool ret;
-    if (k == "PORT_P0_P1") {
+    if (k == "MY_PRIVATE_KEY_HEX") {
+      ret = Convert(v, Param::MY_PRIVATE_KEY_HEX, k);
+    } else if (k == "OTHER_PUBLIC_KEY_HEX") {
+      ret = Convert(v, Param::OTHER_PUBLIC_KEY_HEX, k);
+    } else if (k == "PORT_P0_P1") {
       ret = Convert(v, Param::PORT_P0_P1, k);
     } else if (k == "PORT_P0_P2") {
       ret = Convert(v, Param::PORT_P0_P2, k);
     } else if (k == "PORT_P1_P2") {
       ret = Convert(v, Param::PORT_P1_P2, k);
-    } else if (k == "PORT_P1_P3") {
-      ret = Convert(v, Param::PORT_P1_P3, k);
-    } else if (k == "PORT_P2_P3") {
-      ret = Convert(v, Param::PORT_P2_P3, k);
     } else if (k == "IP_ADDR_P0") {
       ret = Convert(v, Param::IP_ADDR_P0, k);
     } else if (k == "IP_ADDR_P1") {
@@ -107,6 +107,10 @@ bool Param::ParseFile(const char *param_file) {
       ret = Convert(v, Param::HWE_UB, k);
     } else if (k == "LD_DIST_THRES") {
       ret = Convert(v, Param::LD_DIST_THRES, k);
+    } else if (k == "NUM_INDS_SP_1") {
+      ret = Convert(v, Param::NUM_INDS_SP_1, k);
+    } else if (k == "NUM_INDS_SP_2") {
+      ret = Convert(v, Param::NUM_INDS_SP_2, k);
     } else if (k == "NUM_INDS") {
       ret = Convert(v, Param::NUM_INDS, k);
     } else if (k == "NUM_SNPS") {
@@ -128,11 +132,12 @@ bool Param::ParseFile(const char *param_file) {
   return true;
 }
 
+string Param::MY_PRIVATE_KEY_HEX = "134197d25ddd95dda789fddbbd9f3329bab3ed5fe31a3b184cf40d780dd206e7";
+string Param::OTHER_PUBLIC_KEY_HEX = "b6abeabb695a23e76315ded61f9ba750f57c79b6eaa4ab0fc28ade4df8517a06";
+
 int Param::PORT_P0_P1 = 8000;
 int Param::PORT_P0_P2 = 8001;
 int Param::PORT_P1_P2 = 8000;
-int Param::PORT_P1_P3 = 8001;
-int Param::PORT_P2_P3 = 8000;
 
 string Param::IP_ADDR_P0 = "128.00.00.101";
 string Param::IP_ADDR_P1 = "128.00.00.102";
@@ -168,6 +173,8 @@ double Param::HWE_UB = 28.3740;
 long Param::LD_DIST_THRES = 1000000;
 long Param::DIV_MAX_N = 100000;
 
+long Param::NUM_INDS_SP_1 = 500;
+long Param::NUM_INDS_SP_2 = 500;
 long Param::NUM_INDS = 1000;
 long Param::NUM_SNPS = 1000;
 long Param::NUM_COVS = 10;

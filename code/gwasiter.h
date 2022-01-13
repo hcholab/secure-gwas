@@ -5,6 +5,7 @@
 #include "assert.h"
 #include <vector>
 #include <NTL/mat_ZZ_p.h>
+#include "libsodium_rng.cpp"
 
 using namespace std;
 
@@ -16,8 +17,9 @@ public:
   static const int GM_CODE = 3;
   static const int GMP_CODE = 4;
 
-  explicit GwasIterator(MPCEnv& mpc, int party_id) {
+  explicit GwasIterator(MPCEnv& mpc, RandomNumberGenerator& rng, int party_id) {
     this->mpc = &mpc;
+    this->rng = &rng;
     this->party_id = party_id;
   }
 
@@ -26,18 +28,18 @@ public:
     this->missing_flag = missing_flag;
 
     index = 0;
-    num_left = Param::NUM_INDS;
-    if (party_id == 1) {
-      mpc->SendInt(TransferMode(), 3);
+
+    if (party_id == 0) {
+      num_left = Param::NUM_INDS;
+    } else if (party_id == 1) {
+      num_left = Param::NUM_INDS_SP_1;
+    } else if (party_id == 2) {
+      num_left = Param::NUM_INDS_SP_2;
+    } else {
+      assert(false);
     }
 
     cout << "Initialized GwasIterator" << endl;
-  }
-
-  void Terminate() {
-    if (party_id == 1) {
-      mpc->SendInt(TERM_CODE, 3);
-    }
   }
 
   int TransferMode() {
@@ -90,6 +92,7 @@ public:
 
 private:
   MPCEnv *mpc;
+  RandomNumberGenerator *rng;
   int party_id;
   int num_left;
   int index;
@@ -106,28 +109,16 @@ private:
       g.SetDims(1, Param::NUM_SNPS);
     }
 
-    if (party_id == 2) {
+    if (party_id == 1 || party_id == 2) {
       if (pheno_flag) {
-        mpc->ReceiveVec(p, 3, 1 + Param::NUM_COVS);
+        rng->RandVec(p, 1 + Param::NUM_COVS);
       }
       if (missing_flag) {
-        mpc->ReceiveMat(g, 3, 3, Param::NUM_SNPS);
-        mpc->ReceiveVec(m, 3, Param::NUM_SNPS);
+        rng->RandMat(g, 3, Param::NUM_SNPS);
+        rng->RandVec(m, Param::NUM_SNPS);
       } else {
-        mpc->ReceiveMat(g, 3, 1, Param::NUM_SNPS);
-      }
-    } else if (party_id == 1) {
-      mpc->SwitchSeed(3);
-      if (pheno_flag) {
-        MPCEnv::RandVec(p, 1 + Param::NUM_COVS);
-      }
-      if (missing_flag) {
-        MPCEnv::RandMat(g, 3, Param::NUM_SNPS);
-        MPCEnv::RandVec(m, Param::NUM_SNPS);
-      } else {
-        MPCEnv::RandMat(g, 1, Param::NUM_SNPS);
-      }
-      mpc->RestoreSeed();
+        rng->RandMat(g, 1, Param::NUM_SNPS);
+      }    
     }
 
     index++;

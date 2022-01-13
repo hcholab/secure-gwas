@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <sodium.h>
 #include <string>
+#include <NTL/mat_ZZ_p.h>
 #include "NTL/ZZ_p.h"
 #include <sstream>
 #include <iomanip>
 #include <string>
+
+#include "param.h"
 
 using namespace NTL;
 using namespace std;
@@ -12,11 +15,10 @@ using namespace std;
 
 #define MESSAGE ((const unsigned char *) "neoiiztdnrzxokrhqnzlufoehvdknkflkypwvgnjzhfivnlecgzijiepozmiqnrqcaefhzusbymkzcrcxboozvtlvcylhpxemteaycpluxbezsiczcezzmdvibqraczxztvlaolphtiwogpinowxffviwkzapoqozozagnnzrnstxpvtidnajdmqxvvlsbzlzdcgnznhodcjxrjqigrcgzppcrfpidfwldtzbqzaaxkjeddmytjgfoekmvqvkixfthipaczpdcmlvucctxkmblpusybzsgyopzeedtqlhgbrbmfxcpdafktznmnrhhuzebmipynozsglrzaqbywexrvnudcxtelwhyarbvrsphefztdivytybagfcrqxbulgzndqgkoodgsxnntofscryscfkvgvlafvreabrymxpwhkbyjwetsehlwvaoiutqrdppydxcspzlkurijvbhjpoqosntdeofmmajydthafqubarwbngxydqpzjgtaotsgdqpelnfycvggoyxomgnqkcvosrirtelcdqhbfmtuvzoxmnrdbfltdohcitiutciyyxrzallhtjcqwqbxinckicdhvupwbnlkkvmmuoxlxhkflxhgqxoymevqfxihruqdqilqkydlrvzyvmrkncjdcrkudtjufzayhifjogywnyxfclqpyhdssrkwytnbdxlvwxwrsliymzlcvsjertgcychbzncgkhopawsufcefjwdveivduwphrkasigxtndyftmswovaxxkprxehscmflhmqkveqxlekpgrhnxpsgpmriibfeivotfbmkcwocsewxhusduzqgxbjfasutjwpdgntljntjgbrrozcfmbxbjkqihzytwdauznoofukgucmibfriisdqrqgxzjewyngwefvstvbibuylkbqcfjhqgvdhqqmatrwnjoxycejcxpqrbvwxqhkgnivjuuzylitpvfbmdwjdqhartpvcjookn")
 #define MESSAGE_LEN 1000
-ZZ BASE_P = conv<ZZ>("1461501637330902918203684832716283019655932542929");
 unsigned char mac[crypto_secretbox_MACBYTES]; // placeholder as message authentication code is not used  
 
-void convert_hex_to_bytes(unsigned char val[crypto_box_SECRETKEYBYTES], const char * hexstring) {
-    const char *pos = hexstring;
+void convert_hex_to_bytes(unsigned char val[crypto_box_SECRETKEYBYTES], string hexstring) {
+    const char *pos = hexstring.c_str();
 
     for (int count = 0; count < crypto_box_SECRETKEYBYTES; count++) {
         sscanf(pos, "%2hhx", &val[count]);
@@ -24,8 +26,11 @@ void convert_hex_to_bytes(unsigned char val[crypto_box_SECRETKEYBYTES], const ch
     }
 }
 
-void convert_byte_string_to_list_of_ints_in_range(ZZ * buffer, unsigned char byte_string[MESSAGE_LEN]) {    
-    int l = NumBits(BASE_P);
+void convert_byte_string_to_list_of_ints_in_range(ZZ * buffer, unsigned char byte_string[MESSAGE_LEN]) {   
+    // ZZ base_p = conv<ZZ>("1461501637330902918203684832716283019655932542929");
+    // ZZ_p::init(base_p); // for testing individually
+    ZZ base_p = conv<ZZ>(Param::BASE_P.c_str()); 
+    int l = NumBits(base_p);
     int n = (l + 8 - 1) / 8; // number of bytes -> l / 8 but rounded up
     int i = 0; // index in buffer
     int j = 0; // index in hex_string
@@ -47,7 +52,7 @@ void convert_byte_string_to_list_of_ints_in_range(ZZ * buffer, unsigned char byt
         std::reverse(subset, subset + n); // default is big endian; ZZFromBytes expects little endian
         ZZ cur = ZZFromBytes((const unsigned char *) subset, n);
 
-        if (cur <= BASE_P) { 
+        if (cur <= base_p) { 
             buffer[i] = cur;
             i++;
         }
@@ -57,8 +62,23 @@ void convert_byte_string_to_list_of_ints_in_range(ZZ * buffer, unsigned char byt
 
 class RandomNumberGenerator {
     public:
-        RandomNumberGenerator(unsigned char * my_private_key, unsigned char * other_public_key, int role) {
+        RandomNumberGenerator(string my_private_key_hex, string other_public_key_hex, int role) {
+            unsigned char my_private_key[crypto_box_SECRETKEYBYTES]; 
+            unsigned char other_public_key[crypto_box_PUBLICKEYBYTES]; 
+            convert_hex_to_bytes(my_private_key, my_private_key_hex);
+            convert_hex_to_bytes(other_public_key, other_public_key_hex);
+
             get_shared_keys(this->my_shared_key, my_private_key, other_public_key, role);
+            this->index = 0;
+            this->nonce = 0;
+            this->buffer[0] = -1;
+        }
+
+        RandomNumberGenerator(unsigned char my_shared_key[32]) {
+            // copy my_shared_key to this->my_shared_key
+            for (int i = 0; i < 32; i++) {
+                this->my_shared_key[i] = my_shared_key[i];
+            }
             this->index = 0;
             this->nonce = 0;
             this->buffer[0] = -1;
@@ -74,19 +94,31 @@ class RandomNumberGenerator {
             convert_byte_string_to_list_of_ints_in_range(this->buffer, pseudo_random_byte_string);
         }
 
-        ZZ random() {
-            if (this->buffer[this->index] != -1) {
-                ZZ result = this->buffer[this->index];
-                this->index++;
-                return result;
-            } else {
+        void RandMat(Mat<ZZ_p>& a, int nrows, int ncols) {
+            a.SetDims(nrows, ncols);
+            for (int i = 0; i < nrows; i++) { 
+                for (int j = 0; j < ncols; j++) { 
+                    a[i][j] = random(); 
+                }
+            }
+        }
+
+        void RandVec(Vec<ZZ_p>& a, int n) {
+            a.SetLength(n);
+            for (int i = 0; i < n; i++)
+                a[i] = random();
+        }
+
+        ZZ_p random() {
+            if (this->buffer[this->index] == -1) {
                 this->index = 0;
                 this->nonce++;
                 generate_buffer();
-                ZZ result = this->buffer[this->index];
-                this->index++;
-                return result;
             }
+
+            ZZ_p result = to_ZZ_p(this->buffer[this->index]);
+            this->index++;
+            return result;
         }
 
     private:
@@ -108,7 +140,7 @@ class RandomNumberGenerator {
             for (int i = 0; i < crypto_secretbox_NONCEBYTES - 1; i++) {
                 nonce[i] = 0;
             }
-            nonce[crypto_secretbox_NONCEBYTES - 1] = role;
+            nonce[crypto_secretbox_NONCEBYTES - 1] = 3 - role; // 3 - role as we want the shared key that was used to encrypt the OTHER party's data
 
             #define MESSAGE2 (const unsigned char *) "bqvbiknychqjywxwjihfrfhgroxycxxj" // some arbitrary 32 letter string
             unsigned char mac[crypto_secretbox_MACBYTES];
@@ -116,30 +148,28 @@ class RandomNumberGenerator {
         }
 };
 
-// for testing  
-int main(void) {
-    unsigned char my_private_key[crypto_box_SECRETKEYBYTES]; 
-    unsigned char other_public_key[crypto_box_PUBLICKEYBYTES]; 
-    convert_hex_to_bytes(my_private_key, "134197d25ddd95dda789fddbbd9f3329bab3ed5fe31a3b184cf40d780dd206e7");
-    convert_hex_to_bytes(other_public_key, "b6abeabb695a23e76315ded61f9ba750f57c79b6eaa4ab0fc28ade4df8517a06");
-    RandomNumberGenerator rng(my_private_key, other_public_key, 1);
-    
-    cout << "The first 10 random numbers to behold: " << endl;
-    // print first 10 random numbers
-    for (int i = 0; i < 10; i++) {
-        cout << rng.random() << endl;
-    }
-}
+// for testing this file individually
+// int main(void) {
+//     // RandomNumberGenerator rng("134197d25ddd95dda789fddbbd9f3329bab3ed5fe31a3b184cf40d780dd206e7", "b6abeabb695a23e76315ded61f9ba750f57c79b6eaa4ab0fc28ade4df8517a06", 1);
+//     unsigned char shared_key[32];
+//     convert_hex_to_bytes(shared_key, "3a57393f2a2ef038d43b432c34339e0cd021a15ce25b17c8bf07a5d9eae05d13");
+//     RandomNumberGenerator rng(shared_key);
+
+//     // cout << "The first 10 random numbers to behold: " << endl;
+//     for (int i = 0; i < 2000; i++) {
+//         cout << rng.random() << " ";
+//     }
+// }
 
 // test method
-void test_convert_byte_string_to_list_of_ints_in_range() {
-    ZZ buffer[100];
-    string pseudo_random_byte_string = "hello world";
-    ZZ base_p = conv<ZZ>("200");
-    // convert_byte_string_to_list_of_ints_in_range(buffer, pseudo_random_byte_string);
+// void test_convert_byte_string_to_list_of_ints_in_range() {
+//     ZZ buffer[100];
+//     string pseudo_random_byte_string = "hello world";
+//     ZZ base_p = conv<ZZ>("200");
+//     // convert_byte_string_to_list_of_ints_in_range(buffer, pseudo_random_byte_string);
 
-    printf("\n");
-    for (int i = 0; buffer[i] != -1; i++) {
-        cout << buffer[i] << endl;
-    }
-}
+//     printf("\n");
+//     for (int i = 0; buffer[i] != -1; i++) {
+//         cout << buffer[i] << endl;
+//     }
+// }

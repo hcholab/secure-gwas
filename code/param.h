@@ -6,6 +6,10 @@ using namespace std;
 
 class Param {
   public:
+    /* Cryptographic keys used in preprocessing of the data */
+    static string MY_PRIVATE_KEY_HEX;
+    static string OTHER_PUBLIC_KEY_HEX;
+
     /* IP addresses */
     static string IP_ADDR_P0;
     static string IP_ADDR_P1;
@@ -18,8 +22,6 @@ class Param {
     static int PORT_P0_P1;
     static int PORT_P0_P2;
     static int PORT_P1_P2;
-    static int PORT_P1_P3;
-    static int PORT_P2_P3;
     
     /* Directories and files */
     static string KEY_PATH; // encryption keys for secure channels
@@ -61,6 +63,8 @@ class Param {
                                // for selecting SNPs for PCA
     
     /* Data dimensions */
+    static long NUM_INDS_SP_1; 
+    static long NUM_INDS_SP_2;
     static long NUM_INDS; // number of individuals
     static long NUM_SNPS; // number of SNPs
     static long NUM_COVS; // number of covariate features
