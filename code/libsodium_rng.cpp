@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <sodium.h>
+#include <algorithm>
 #include <string>
 #include <NTL/mat_ZZ_p.h>
 #include "NTL/ZZ_p.h"
 #include <sstream>
 #include <iomanip>
-#include <string>
 
 #include "param.h"
 
@@ -74,10 +74,10 @@ class RandomNumberGenerator {
             this->buffer[0] = -1;
         }
 
-        RandomNumberGenerator(unsigned char my_shared_key[32]) {
+        RandomNumberGenerator(unsigned char shared_key[32]) {
             // copy my_shared_key to this->my_shared_key
             for (int i = 0; i < 32; i++) {
-                this->my_shared_key[i] = my_shared_key[i];
+                this->my_shared_key[i] = shared_key[i];
             }
             this->index = 0;
             this->nonce = 0;

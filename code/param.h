@@ -6,9 +6,8 @@ using namespace std;
 
 class Param {
   public:
-    /* Cryptographic keys used in preprocessing of the data */
-    static string MY_PRIVATE_KEY_HEX;
-    static string OTHER_PUBLIC_KEY_HEX;
+    /* Cryptographic key used in preprocessing of the data */
+    static unsigned char OTHER_SHARED_KEY[32];
 
     /* IP addresses */
     static string IP_ADDR_P0;

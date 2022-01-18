@@ -183,6 +183,9 @@ int main(int argc, char** argv) {
       data_dir += "/";
     }
 
+    ifstream fin(data_dir + "other_shared_key.bin", std::ios::binary);
+    fin.read((char*)&Param::OTHER_SHARED_KEY, sizeof(Param::OTHER_SHARED_KEY));
+
     cout << "Data directory: " << data_dir << endl;
   }
 

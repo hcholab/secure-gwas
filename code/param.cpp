@@ -34,11 +34,7 @@ bool Param::ParseFile(const char *param_file) {
     getline(pfile, v);
 
     bool ret;
-    if (k == "MY_PRIVATE_KEY_HEX") {
-      ret = Convert(v, Param::MY_PRIVATE_KEY_HEX, k);
-    } else if (k == "OTHER_PUBLIC_KEY_HEX") {
-      ret = Convert(v, Param::OTHER_PUBLIC_KEY_HEX, k);
-    } else if (k == "PORT_P0_P1") {
+    if (k == "PORT_P0_P1") {
       ret = Convert(v, Param::PORT_P0_P1, k);
     } else if (k == "PORT_P0_P2") {
       ret = Convert(v, Param::PORT_P0_P2, k);
@@ -132,8 +128,7 @@ bool Param::ParseFile(const char *param_file) {
   return true;
 }
 
-string Param::MY_PRIVATE_KEY_HEX = "134197d25ddd95dda789fddbbd9f3329bab3ed5fe31a3b184cf40d780dd206e7";
-string Param::OTHER_PUBLIC_KEY_HEX = "b6abeabb695a23e76315ded61f9ba750f57c79b6eaa4ab0fc28ade4df8517a06";
+unsigned char Param::OTHER_SHARED_KEY[32] = {0};
 
 int Param::PORT_P0_P1 = 8000;
 int Param::PORT_P0_P2 = 8001;

@@ -4,7 +4,6 @@
 #include "gwasiter.h"
 #include "mpc.h"
 #include "util.h"
-#include "filereader.cpp"
 #include <vector>
 #include <NTL/mat_ZZ_p.h>
 #include <NTL/mat_ZZ.h>
@@ -528,7 +527,7 @@ bool data_sharing_protocol(MPCEnv& mpc, int party_id, string data_dir) {
     }
   }
 
-  RandomNumberGenerator rng(Param::MY_PRIVATE_KEY_HEX, Param::OTHER_PUBLIC_KEY_HEX, party_id);    
+  RandomNumberGenerator rng(Param::OTHER_SHARED_KEY);    
   GwasIterator git(mpc, rng, party_id);
   git.Init(true, true);
 
