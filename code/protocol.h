@@ -701,7 +701,7 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
     if (history) {
       cout << "Using locus missing rate filter from a previous run" << endl;
    
-      if (party_id == 2) {
+      if (party_id == 1 || party_id == 2) {
         ifs.open(outname("gkeep1").c_str());
         for (int i = 0; i < m0; i++) {
           ifs >> gkeep1[i];
@@ -795,7 +795,7 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
         mpc.ReceiveVec(gkeep1, 2, m0);
       }
 
-      if (party_id == 2) {
+      if (party_id == 1 || party_id == 2) {
         ofs.open(outname("gkeep1").c_str());
         for (int i = 0; i < gkeep1.length(); i++) {
           ofs << gkeep1[i] << endl;
@@ -839,7 +839,7 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
     if (history) {
       cout << "Using individual missing rate/het rate filters from a previous run" << endl;
    
-      if (party_id == 2) {
+      if (party_id == 1 || party_id == 2) {
         ifs.open(outname("ikeep").c_str());
         for (int i = 0; i < n0; i++) {
           ifs >> ikeep[i];
@@ -988,7 +988,7 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
         mpc.ReceiveVec(ikeep, 2, n0);
       }
 
-      if (party_id == 2) {
+      if (party_id == 1 || party_id == 2) {
         ofs.open(outname("ikeep"));
         for (int i = 0; i < ikeep.length(); i++) {
           ofs << ikeep[i] << endl;
@@ -1315,7 +1315,7 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
     if (history) {
       cout << "Using MAF/HWE filters from a previous run" << endl;
    
-      if (party_id == 2) {
+      if (party_id == 1 || party_id == 2) {
         ifs.open(outname("gkeep2").c_str());
         for (int i = 0; i < m1; i++) {
           ifs >> gkeep2[i];
@@ -1414,7 +1414,7 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
         mpc.ReceiveVec(gkeep2, 2, m1);
       }
 
-      if (party_id == 2) {
+      if (party_id == 1 || party_id == 2) {
         ofs.open(outname("gkeep2").c_str());
         for (int i = 0; i < gkeep2.length(); i++) {
           ofs << gkeep2[i] << endl;
@@ -2556,7 +2556,7 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
 
   cout << "Association statistics calculated" << endl;
   mpc.RevealSym(z);
-  if (party_id == 2) {
+  if (party_id == 1 || party_id == 2) {
     Vec<double> z_double;
     FPToDouble(z_double, z, Param::NBIT_K, Param::NBIT_F);
     ofs.open(outname("assoc").c_str(), ios::out);
