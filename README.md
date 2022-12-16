@@ -66,10 +66,6 @@ Make sure that the specified ports are not blocked by the firewall.
 We provide an example data set in
 test_data1/ (for CP1) and test_data2/ (for CP2) directories.
 
-See the sister repo (https://github.com/simonjmendelsohn/key-exchange) for
-generating the input data, as well as the shared keys (which can be updated in
-the parameter file).
-
 ==== Step 3: Initial Data Sharing ====
 
 On the respective machines, cd into code/ and run DataSharingClient
