@@ -113,6 +113,8 @@ bool Param::ParseFile(const char *param_file) {
       ret = Convert(v, Param::NUM_SNPS, k);
     } else if (k == "NUM_COVS") {
       ret = Convert(v, Param::NUM_COVS, k);
+    } else if (k == "BINARY_PHENO") {
+      ret = Convert(v, Param::BINARY_PHENO, k);
     } else if (k == "DEBUG") {
       ret = Convert(v, Param::DEBUG, k);
     } else {
@@ -173,6 +175,7 @@ long Param::NUM_INDS_SP_2 = 500;
 long Param::NUM_INDS = 1000;
 long Param::NUM_SNPS = 1000;
 long Param::NUM_COVS = 10;
+bool Param::BINARY_PHENO = false;
 
 long Param::PITER_BATCH_SIZE = 100;
 long Param::PAR_THRES = 50;

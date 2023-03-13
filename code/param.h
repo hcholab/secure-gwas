@@ -67,6 +67,7 @@ class Param {
     static long NUM_INDS; // number of individuals
     static long NUM_SNPS; // number of SNPs
     static long NUM_COVS; // number of covariate features
+    static bool BINARY_PHENO; // binary phenotype flag
 
     /* Software parameters */
     static uint64_t MPC_BUF_SIZE; // size of data buffer in bytes

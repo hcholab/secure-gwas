@@ -1009,7 +1009,16 @@ bool gwas_protocol(MPCEnv& mpc, int party_id) {
   mpc.FilterRows(cov, ikeep, n1);
 
   Vec<ZZ_p> ctrl;
-  mpc.FlipBit(ctrl, pheno);
+  if (Param::BINARY_PHENO) {
+    mpc.FlipBit(ctrl, pheno);
+  } else {
+    ctrl.SetLength(pheno.length());
+    if (party_id == 1) {
+      for (int i = 0; i < ctrl.length(); i++) {
+        ctrl[i] = ZZ_p(1);
+      }
+    }
+  }
 
   Vec<ZZ_p> ctrl_mask;
   mpc.BeaverPartition(ctrl_mask, ctrl);
