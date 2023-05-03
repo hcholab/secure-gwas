@@ -1,6 +1,7 @@
 #include "param.h"
 #include <fstream>
 #include <sstream>
+#include <stdint.h>
 
 template<class T>
 bool Param::Convert(string s, T &var, string name) {

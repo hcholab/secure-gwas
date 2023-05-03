@@ -344,7 +344,7 @@ private:
 
     EVP_CIPHER_CTX *ctx;
     int len;
-    int plaintext_len;
+    // int plaintext_len;
     int ret;
   
     /* Create and initialise the context */
@@ -369,7 +369,7 @@ private:
       return false;
     }
 
-    plaintext_len = len;
+    // plaintext_len = len;
   
     /* Set expected tag value. Works in OpenSSL 1.0.1d and later */
     if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, GCM_AUTH_TAG_LEN, tag)) {
